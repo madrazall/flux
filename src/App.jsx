@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import HelpSystem from 'HelpSystem'
 import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ─────────────────────────────────────────────────────────
@@ -748,8 +749,9 @@ export default function App() {
             <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
-            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
-            <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
+            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>     
+            <HelpSystem />
+<button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
           </div>
         </div>
       </div>
