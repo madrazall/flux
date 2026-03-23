@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import HelpSystem from 'HelpSystem'
+import HelpSystem from './HelpSystem.jsx'
 import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ─────────────────────────────────────────────────────────
