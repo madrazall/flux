@@ -662,6 +662,12 @@ export default function App() {
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
 
+  async function deleteArchiveDay(dayKey) {
+  const updatedArchive = { ...archive };
+  delete updatedArchive[dayKey];
+  setArchive(updatedArchive);
+}
+
   async function saveEvents(newEvents) {
     setEvents(newEvents);
     if (!session) return;
@@ -886,7 +892,28 @@ export default function App() {
                         {day.tasks?.length > 0 && <span style={{ marginLeft: 8 }}>{doneTasks.length}/{day.tasks.length} tasks done</span>}
                       </div>
                     </div>
-                    <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
+<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      deleteArchiveDay(key);
+    }}
+    style={{
+      background: "red",
+      color: "white",
+      border: "none",
+      padding: "4px 8px",
+      borderRadius: 4,
+      cursor: "pointer"
+    }}
+  >
+    Delete
+  </button>
+
+  <div style={{ color: C.textDim, fontSize: 11 }}>
+    {isOpen ? "▲" : "▼"}
+  </div>
+</div>
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
