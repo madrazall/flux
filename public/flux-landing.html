@@ -209,7 +209,7 @@ footer {
   <div class="nav-logo">Flux</div>
   <div style="display:flex;align-items:center;gap:16px;">
     <div class="nav-tag">Private access</div>
-    <a href="https://flux-delta-olive.vercel.app" class="nav-signin">Sign in →</a>
+    <button onclick="signIn()" class="nav-signin">Sign in →</button>
   </div>
 </nav>
 
@@ -223,39 +223,21 @@ footer {
   <p class="hero-sub">
     A daily planner and journal that bends instead of breaks. Flexible structure, real data about how your days actually go, and a system that works with you — not against you.
   </p>
+  <p class="hero-sub" style="margin-top: 12px;">
+    Built for me to reduce noise, overstimulation, and keep things simple. Lucky for you, I like to share.
+  </p>
 
-  <!-- Request form -->
-  <div class="request-wrap">
-    <div class="form-header">
-      <div class="form-title">Request Access</div>
-      <div class="form-badge">Invite only</div>
+  <div class="request-wrap" style="text-align:center;">
+    <div class="form-header" style="justify-content:center;">
+      <div class="form-title">Get started now</div>
+      <div class="form-badge">Free for everyone</div>
     </div>
-
-    <div id="form-state">
-      <div class="form-grid">
-        <div>
-          <label class="field-label">Your name</label>
-          <input type="text" class="field-input" id="req-name" placeholder="first name is fine" />
-        </div>
-        <div>
-          <label class="field-label">Email address</label>
-          <input type="email" class="field-input" id="req-email" placeholder="your@email.com" />
-        </div>
-        <div>
-          <label class="field-label">Why do you want access?</label>
-          <textarea class="field-input" id="req-reason" placeholder="tell us a little about yourself and why Flux sounds right for you..."></textarea>
-        </div>
-        <button class="submit-btn" id="submit-btn" onclick="handleRequest()">Send Request →</button>
-      </div>
-      <div class="form-note" id="form-error" style="color:#e8365d;display:none;">please fill in all fields before submitting.</div>
-      <div class="form-note">Access is reviewed personally. No spam, no newsletters, no nonsense.</div>
-    </div>
-
-    <div class="success-state" id="success-state">
-      <div class="success-icon">📬</div>
-      <div class="success-title">Request received</div>
-      <div class="success-text">We'll review your request and be in touch.<br>If you know the person who sent you here, give them a nudge too.</div>
-    </div>
+    <p class="hero-sub" style="margin-top: 16px; max-width: 100%;">
+      Flux is open to all — no invite required. Click sign in to start using the full workflow (timeline, tasks, archive, and patterns).
+    </p>
+    <a onclick="signIn()" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding: 14px 24px; cursor:pointer;">
+      Open Flux →
+    </a>
   </div>
 </section>
 
@@ -383,6 +365,22 @@ footer {
       errEl.textContent = 'Something went wrong — try again.';
       errEl.style.display = 'block';
     }
+  }
+</script>
+
+<script>
+  // Supabase auth
+  const SUPABASE_URL = 'https://aqzbpiryxhyndxbukwsc.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxemJwaXJ5eGh5bmR4YnVrd3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzgxMjcsImV4cCI6MjA4OTgxNDEyN30.kOJk8aFybXMeo2Kde_Z5W24ypMNn4ME4wFStctpXgeQ';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  async function signIn() {
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://flux-delta-olive.vercel.app' }
+    });
+    if (error) console.error('Error signing in:', error);
   }
 </script>
 
