@@ -772,7 +772,10 @@ export default function App() {
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
             <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>     
             <HelpSystem />
-<button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
+            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" 
+               style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1, textDecoration: "none" }} 
+               title="Buy us a coffee ☕">☕</a>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
           </div>
         </div>
       </div>
@@ -819,13 +822,11 @@ export default function App() {
                 ref={timelineRef}
                 style={{ flex: 1, position: "relative", background: C.bg }}
                 onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    const rect = timelineRef.current.getBoundingClientRect();
-                    const y = e.clientY - rect.top;
-                    const newTime = getTimeFromPosition(y, rect.height);
-                    setNewBlock({ ...newBlock, time: newTime });
-                    setAddingBlock(true);
-                  }
+                  const rect = timelineRef.current.getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+                  const newTime = getTimeFromPosition(y, rect.height);
+                  setNewBlock({ ...newBlock, time: newTime });
+                  setAddingBlock(true);
                 }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -1134,6 +1135,9 @@ export default function App() {
             </div>
           </>}
         </>}
+      </div>
+      <div style={{ textAlign: "center", padding: "20px 24px 40px", fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
+        <div>☕ <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>buy us a coffee</a> if you find flux useful</div>
       </div>
     </div>
   );
