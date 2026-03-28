@@ -376,11 +376,15 @@ footer {
   const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function signIn() {
+    console.log('signIn clicked: redirectTo', window.location.origin);
     const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://flux-delta-olive.vercel.app' }
+      options: { redirectTo: window.location.origin }
     });
-    if (error) console.error('Error signing in:', error);
+    if (error) {
+      console.error('Error signing in:', error);
+      alert('Sign-in error: ' + error.message);
+    }
   }
 </script>
 
