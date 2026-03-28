@@ -63,6 +63,36 @@ function formatEventDate(dateStr) {
 function isToday(dateStr) { return dateStr === todayKey(); }
 function isFuture(dateStr) { return dateStr >= todayKey(); }
 
+// ── Timeline helpers ──────────────────────────────────────────────────
+function timeToMinutes(timeStr) {
+  const [time, ampm] = timeStr.split(/(am|pm)/);
+  let [hours, minutes] = time.split(':').map(Number);
+  if (ampm === 'pm' && hours !== 12) hours += 12;
+  if (ampm === 'am' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const ampm = h < 12 ? "am" : "pm";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m === 0 ? "00" : "30"}${ampm}`;
+}
+
+function getTimeSlotIndex(timeStr) {
+  const minutes = timeToMinutes(timeStr);
+  const startMinutes = timeToMinutes(TIMES[0]);
+  return Math.round((minutes - startMinutes) / 30);
+}
+
+function getTimeFromPosition(y, timelineHeight) {
+  const slotHeight = timelineHeight / TIMES.length;
+  const slotIndex = Math.floor(y / slotHeight);
+  const clampedIndex = Math.max(0, Math.min(TIMES.length - 1, slotIndex));
+  return TIMES[clampedIndex];
+}
+
 // ── Tag helpers ───────────────────────────────────────────────────────
 function resolveTag(tagId, tags) {
   return tags.find(t => t.id === tagId) || { label: tagId, color: C.textDim, bg: C.surface };
@@ -581,6 +611,7 @@ export default function App() {
   const [flash, setFlash]             = useState(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
+  const timelineRef = useRef(null);
 
   // ── Auth ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -662,6 +693,15 @@ export default function App() {
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
 
+  async function deleteArchiveDay(dayKey) {
+    if (!session) return;
+    const uid = session.user.id;
+    await supabase.from("archive").delete().eq("user_id", uid).eq("day_key", dayKey);
+    const updatedArchive = { ...archive };
+    delete updatedArchive[dayKey];
+    setArchive(updatedArchive);
+  }
+
   async function saveEvents(newEvents) {
     setEvents(newEvents);
     if (!session) return;
@@ -680,13 +720,6 @@ export default function App() {
   }
 
   function handleDragStart(id) { dragItem.current = id; setDragging(id); }
-  function handleDragOver(e, id) { e.preventDefault(); setDragOver(id); }
-  function handleDrop(targetId) {
-    if (!dragItem.current || dragItem.current === targetId) { setDragging(null); setDragOver(null); return; }
-    const from = blocks.findIndex(b => b.id === dragItem.current), to = blocks.findIndex(b => b.id === targetId);
-    const next = [...blocks]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved);
-    setBlocks(next); setDragging(null); setDragOver(null); dragItem.current = null;
-  }
   function updateBlock(id, patch) { setBlocks(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
   function deleteBlock(id) { setBlocks(blocks.filter(b => b.id !== id)); }
   function addBlock() {
@@ -711,7 +744,6 @@ export default function App() {
         textarea,input{font-family:inherit}
         .br:hover .ba{opacity:1!important}
         .task-row:hover .task-del{opacity:1!important}
-        .drag-over{border-top:2px solid ${C.accent}!important}
         .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
         .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
         .nav:not(.on){color:${C.textDim}}
@@ -752,7 +784,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag to reorder · hover for options</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag blocks to change time · click empty space to add blocks</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
@@ -771,67 +803,137 @@ export default function App() {
             </div>
           )}
 
-          {/* Blocks */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
-            {blocks.map(block => {
-              const tag = resolveTag(block.tag, tags);
-              return (
-                <div key={block.id} className={`br${dragOver === block.id ? " drag-over" : ""}`}
-                  draggable onDragStart={() => handleDragStart(block.id)}
-                  onDragOver={e => handleDragOver(e, block.id)} onDrop={() => handleDrop(block.id)}
-                  onDragEnd={() => { setDragging(null); setDragOver(null); }}
-                  style={{ background: dragging === block.id ? "#1e1e21" : C.card, border: `1px solid ${dragging === block.id ? tag.color : C.border}`, borderLeft: `3px solid ${tag.color || C.border}`, borderRadius: 6, padding: "10px 14px", cursor: "grab", opacity: dragging === block.id ? .5 : 1, transition: "border-color .15s" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ color: C.textDim, fontSize: 13, userSelect: "none" }}>⠿</span>
-                    <select value={block.time} onChange={e => updateBlock(block.id, { time: e.target.value })} onClick={e => e.stopPropagation()}
-                      style={{ background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}30`, color: tag.color || C.textDim, borderRadius: 3, fontSize: 11, padding: "2px 5px", cursor: "pointer", minWidth: 72, fontFamily: "inherit" }}>
-                      {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <span style={{ flex: 1, fontSize: 13, color: C.text }}>{block.label}</span>
-                    <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
-                      <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
-                    </div>
-                    <div className="ba" style={{ display: "flex", gap: 4, opacity: 0, transition: "opacity .15s" }}>
-                      <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "2px 4px" }} title="note">📝</button>
-                      <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }} title="remove">✕</button>
-                    </div>
+          {/* Timeline */}
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            <div style={{ display: "flex", height: TIMES.length * 20, border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}>
+              {/* Time labels */}
+              <div style={{ width: 60, background: C.surface, borderRight: `1px solid ${C.border}`, padding: "2px 0" }}>
+                {TIMES.map((time, i) => (
+                  <div key={time} style={{ height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.textDim }}>
+                    {time}
                   </div>
-                  {editingNote === block.id && (
-                    <textarea autoFocus placeholder="note this block..." value={block.note}
-                      onChange={e => updateBlock(block.id, { note: e.target.value })}
-                      onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
-                      style={{ width: "100%", marginTop: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none" }} />
-                  )}
-                  {block.note && editingNote !== block.id && (
-                    <div style={{ marginTop: 5, fontSize: 11, color: C.textMid, paddingLeft: 24, fontStyle: "italic" }}>{block.note}</div>
-                  )}
-                </div>
-              );
-            })}
+                ))}
+              </div>
+              {/* Timeline area */}
+              <div 
+                ref={timelineRef}
+                style={{ flex: 1, position: "relative", background: C.bg }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    const rect = timelineRef.current.getBoundingClientRect();
+                    const y = e.clientY - rect.top;
+                    const newTime = getTimeFromPosition(y, rect.height);
+                    setNewBlock({ ...newBlock, time: newTime });
+                    setAddingBlock(true);
+                  }
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!dragItem.current) return;
+                  const rect = timelineRef.current.getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+                  const newTime = getTimeFromPosition(y, rect.height);
+                  updateBlock(dragItem.current, { time: newTime });
+                  setDragging(null);
+                  dragItem.current = null;
+                }}
+              >
+                {/* Time slots */}
+                {TIMES.map((time, i) => (
+                  <div key={time} style={{ 
+                    position: "absolute", 
+                    top: (i * 20), 
+                    left: 0, 
+                    right: 0, 
+                    height: 20, 
+                    borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none",
+                    background: i % 2 === 0 ? "transparent" : `${C.surface}20`
+                  }} />
+                ))}
+                {/* Blocks */}
+                {blocks.map(block => {
+                  const tag = resolveTag(block.tag, tags);
+                  const slotIndex = getTimeSlotIndex(block.time);
+                  return (
+                    <div 
+                      key={block.id}
+                      draggable
+                      onDragStart={(e) => {
+                        dragItem.current = block.id;
+                        setDragging(block.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragging(null);
+                        dragItem.current = null;
+                      }}
+                      className={`br${dragOver === block.id ? " drag-over" : ""}`}
+                      style={{ 
+                        position: "absolute",
+                        top: slotIndex * 20,
+                        left: 4,
+                        right: 4,
+                        height: 40,
+                        background: dragging === block.id ? "#1e1e21" : C.card, 
+                        border: `1px solid ${dragging === block.id ? tag.color : C.border}`, 
+                        borderLeft: `3px solid ${tag.color || C.border}`, 
+                        borderRadius: 4, 
+                        padding: "6px 8px", 
+                        cursor: "grab", 
+                        opacity: dragging === block.id ? .7 : 1, 
+                        transition: "all .15s",
+                        zIndex: dragging === block.id ? 10 : 1,
+                        boxShadow: dragging === block.id ? "0 4px 12px rgba(0,0,0,0.3)" : "none"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%" }}>
+                        <span style={{ color: C.textDim, fontSize: 11, userSelect: "none", flexShrink: 0 }}>⠿</span>
+                        <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.label}</span>
+                        <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
+                          <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
+                        </div>
+                        <div className="ba" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity .15s", flexShrink: 0 }}>
+                          <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 2px" }} title="note">📝</button>
+                          <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 2px" }} title="remove">✕</button>
+                        </div>
+                      </div>
+                      {editingNote === block.id && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4 }}>
+                          <textarea autoFocus placeholder="note this block..." value={block.note}
+                            onChange={e => updateBlock(block.id, { note: e.target.value })}
+                            onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
+                            style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }} />
+                        </div>
+                      )}
+                      {block.note && editingNote !== block.id && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 2, fontSize: 11, color: C.textMid, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+                          {block.note}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, textAlign: "center" }}>click empty space to add blocks · drag blocks to change time</div>
           </div>
 
           {addingBlock ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 22 }}>
-              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK</div>
+              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK AT {newBlock.time.toUpperCase()}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })}
                   onKeyDown={e => e.key === "Enter" && addBlock()}
                   style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 130 }} />
                 <div style={{ fontSize: 11, color: C.textDim }}>tag:</div>
                 <TagSelector tags={tags} value={newBlock.tag} onChange={tagId => setNewBlock({ ...newBlock, tag: tagId })} onCreateTag={persistTags} />
-                <select value={newBlock.time} onChange={e => setNewBlock({ ...newBlock, time: e.target.value })}
-                  style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, fontFamily: "inherit" }}>
-                  {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button onClick={addBlock} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
                 <button onClick={() => setAddingBlock(false)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
               </div>
             </div>
-          ) : (
-            <button className="addbtn" onClick={() => setAddingBlock(true)} style={{ marginBottom: 22 }}>+ add block</button>
-          )}
+          ) : null}
 
           {/* Drawers */}
           <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
@@ -886,7 +988,31 @@ export default function App() {
                         {day.tasks?.length > 0 && <span style={{ marginLeft: 8 }}>{doneTasks.length}/{day.tasks.length} tasks done</span>}
                       </div>
                     </div>
-                    <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      if (window.confirm(`Are you sure you want to permanently delete the archived day "${day.date || key}"? This action cannot be undone.`)) {
+        deleteArchiveDay(key);
+      }
+    }}
+    style={{
+      background: "transparent",
+      color: "#ff4d4d",
+      border: "1px solid #ff4d4d",
+      padding: "2px 6px",
+      borderRadius: 4,
+      fontSize: 10,
+      cursor: "pointer"
+    }}
+  >
+    delete
+  </button>
+
+  <div style={{ color: C.textDim, fontSize: 11 }}>
+    {isOpen ? "▲" : "▼"}
+  </div>
+</div>
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
