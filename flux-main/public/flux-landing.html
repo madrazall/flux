@@ -209,7 +209,7 @@ footer {
   <div class="nav-logo">Flux</div>
   <div style="display:flex;align-items:center;gap:16px;">
     <div class="nav-tag">Private access</div>
-    <a href="https://flux-delta-olive.vercel.app" class="nav-signin">Sign in →</a>
+    <button onclick="signIn()" class="nav-signin">Sign in →</button>
   </div>
 </nav>
 
@@ -235,7 +235,7 @@ footer {
     <p class="hero-sub" style="margin-top: 16px; max-width: 100%;">
       Flux is open to all — no invite required. Click sign in to start using the full workflow (timeline, tasks, archive, and patterns).
     </p>
-    <a href="https://flux-delta-olive.vercel.app" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding: 14px 24px;">
+    <a onclick="signIn()" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding: 14px 24px; cursor:pointer;">
       Open Flux →
     </a>
   </div>
@@ -365,6 +365,22 @@ footer {
       errEl.textContent = 'Something went wrong — try again.';
       errEl.style.display = 'block';
     }
+  }
+</script>
+
+<script>
+  // Supabase auth
+  const SUPABASE_URL = 'https://aqzbpiryxhyndxbukwsc.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxemJwaXJ5eGh5bmR4YnVrd3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzgxMjcsImV4cCI6MjA4OTgxNDEyN30.kOJk8aFybXMeo2Kde_Z5W24ypMNn4ME4wFStctpXgeQ';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  async function signIn() {
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://flux-delta-olive.vercel.app' }
+    });
+    if (error) console.error('Error signing in:', error);
   }
 </script>
 
