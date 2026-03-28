@@ -889,6 +889,9 @@ export default function App() {
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%" }}>
                         <span style={{ color: C.textDim, fontSize: 11, userSelect: "none", flexShrink: 0 }}>⠿</span>
+                        <span style={{ color: C.textDim, fontSize: 11, minWidth: 46, textAlign: "center", fontFamily: "monospace" }}>
+                          {block.time}
+                        </span>
                         <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.label}</span>
                         <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
                           <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
@@ -1135,9 +1138,6 @@ export default function App() {
             </div>
           </>}
         </>}
-      </div>
-      <div style={{ textAlign: "center", padding: "20px 24px 40px", fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
-        <div>☕ <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>buy us a coffee</a> if you find flux useful</div>
       </div>
     </div>
   );
