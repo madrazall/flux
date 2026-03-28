@@ -305,7 +305,7 @@ footer {
   const APP_URL = 'https://flux-delta-olive.vercel.app';
 
   const { createClient } = supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function handleRequest() {
     const name = document.getElementById('req-name').value.trim();
@@ -369,15 +369,14 @@ footer {
 </script>
 
 <script>
-  // Supabase auth
-  const SUPABASE_URL = 'https://aqzbpiryxhyndxbukwsc.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxemJwaXJ5eGh5bmR4YnVrd3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzgxMjcsImV4cCI6MjA4OTgxNDEyN30.kOJk8aFybXMeo2Kde_Z5W24ypMNn4ME4wFStctpXgeQ';
-  const { createClient } = supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   async function signIn() {
     console.log('signIn clicked: redirectTo', window.location.origin);
-    const { error } = await db.auth.signInWithOAuth({
+    if (!window.db) {
+      console.error('Supabase client not initialized.');
+      alert('Supabase client not initialized.');
+      return;
+    }
+    const { error } = await window.db.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin }
     });
