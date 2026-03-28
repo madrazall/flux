@@ -229,15 +229,33 @@ footer {
 
   <div class="request-wrap" style="text-align:center;">
     <div class="form-header" style="justify-content:center;">
-      <div class="form-title">Get started now</div>
+      <div class="form-title">Request Access</div>
       <div class="form-badge">Free for everyone</div>
     </div>
-    <p class="hero-sub" style="margin-top: 16px; max-width: 100%;">
-      Flux is open to all — no invite required. Click sign in to start using the full workflow (timeline, tasks, archive, and patterns).
-    </p>
-    <a onclick="signIn()" class="submit-btn" style="text-decoration:none; display:inline-block; width:auto; padding: 14px 24px; cursor:pointer;">
-      Open Flux →
-    </a>
+    <div id="form-state">
+      <div class="form-grid">
+        <div>
+          <label class="field-label" for="req-name">Your name</label>
+          <input id="req-name" class="field-input" type="text" placeholder="First name is fine" />
+        </div>
+        <div>
+          <label class="field-label" for="req-email">Email</label>
+          <input id="req-email" class="field-input" type="email" placeholder="you@example.com" />
+        </div>
+        <div>
+          <label class="field-label" for="req-reason">Why you want access</label>
+          <textarea id="req-reason" class="field-input" placeholder="I need Flux to..."></textarea>
+        </div>
+        <div id="form-error" class="form-note" style="display:none;color:#ff6d6d;">Please fill all fields.</div>
+        <button id="submit-btn" class="submit-btn" style="width:100%;" onclick="handleRequest()">Send request →</button>
+      </div>
+      <p class="form-note">We will notify <strong>fluxteam@proton.me</strong>.</p>
+    </div>
+    <div id="success-state" class="success-state">
+      <div class="success-icon">✅</div>
+      <div class="success-title">Request sent</div>
+      <div class="success-text">Thanks. We’ll email you when access is granted.</div>
+    </div>
   </div>
 </section>
 
