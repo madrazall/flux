@@ -552,12 +552,14 @@ function CalendarView({ events, onEventsChange }) {
 function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("signin"); // "signin" or "signup"
+  const [mode, setMode] = useState("signin"); // "signin", "signup", or "forgot"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   async function handleAuth() {
     setError("");
+    setSuccessMsg("");
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -565,18 +567,53 @@ function AuthScreen() {
         if (signUpError) {
           setError(signUpError.message);
         } else {
-          setError(""); // Clear error on success
+          setSuccessMsg("Account created! Please check your email to confirm.");
           setTimeout(() => {
             setMode("signin");
             setPassword("");
-            setError("Account created! Please sign in.");
-          }, 500);
+            setEmail("");
+          }, 2000);
         }
-      } else {
+      } else if (mode === "signin") {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) {
           setError(signInError.message);
         }
+      } else if (mode === "forgot") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+        if (resetError) {
+          setError(resetError.message);
+        } else {
+          setSuccessMsg("Check your email for the password reset link!");
+          setEmail("");
+        }
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  }
+
+  async function handlePasswordReset() {
+    setError("");
+    setSuccessMsg("");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccessMsg("Password updated! Redirecting to login...");
+        setTimeout(() => {
+          setPassword("");
+          setEmail("");
+          setMode("signin");
+          window.location.hash = "";
+        }, 1500);
       }
     } catch (e) {
       setError(e.message);
@@ -594,50 +631,77 @@ function AuthScreen() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 20, textAlign: "center", textTransform: "uppercase" }}>
-            {mode === "signin" ? "Sign In" : "Create Account"}
+            {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <input
-              type="email"
-              placeholder="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                color: C.text,
-                borderRadius: 4,
-                padding: "10px 12px",
-                fontSize: 13,
-                outline: "none",
-                opacity: loading ? 0.6 : 1,
-                marginBottom: 12
-              }}
-            />
-            <input
-              type="password"
-              placeholder="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                color: C.text,
-                borderRadius: 4,
-                padding: "10px 12px",
-                fontSize: 13,
-                outline: "none",
-                opacity: loading ? 0.6 : 1
-              }}
-            />
-          </div>
+          {mode === "forgot" ? (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  color: C.text,
+                  borderRadius: 4,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  opacity: loading ? 0.6 : 1
+                }}
+              />
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+                enter your email and we'll send you a link to reset your password
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  color: C.text,
+                  borderRadius: 4,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  opacity: loading ? 0.6 : 1,
+                  marginBottom: 12
+                }}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  color: C.text,
+                  borderRadius: 4,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  opacity: loading ? 0.6 : 1
+                }}
+              />
+            </div>
+          )}
 
           {error && (
             <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
@@ -645,9 +709,15 @@ function AuthScreen() {
             </div>
           )}
 
+          {successMsg && (
+            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+              {successMsg}
+            </div>
+          )}
+
           <button
-            onClick={handleAuth}
-            disabled={loading || !email || !password}
+            onClick={mode === "forgot" ? handleAuth : handlePasswordReset}
+            disabled={loading || !email || (mode !== "forgot" && !password)}
             style={{
               width: "100%",
               background: C.accent,
@@ -656,36 +726,83 @@ function AuthScreen() {
               borderRadius: 4,
               padding: "10px 16px",
               fontSize: 12,
-              cursor: loading || !email || !password ? "default" : "pointer",
+              cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer",
               fontFamily: "inherit",
               letterSpacing: 0.5,
-              opacity: loading || !email || !password ? 0.6 : 1,
+              opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1,
               marginBottom: 16,
               transition: "all .15s"
             }}
           >
-            {loading ? "loading..." : mode === "signin" ? "Sign In" : "Create Account"}
+            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
           </button>
 
-          <button
-            onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}
-            disabled={loading}
-            style={{
-              width: "100%",
-              background: "none",
-              border: `1px solid ${C.border}`,
-              color: C.textDim,
-              borderRadius: 4,
-              padding: "10px 16px",
-              fontSize: 12,
-              cursor: loading ? "default" : "pointer",
-              fontFamily: "inherit",
-              letterSpacing: 0.5,
-              transition: "all .15s"
-            }}
-          >
-            {mode === "signin" ? "Create Account" : "Back to Sign In"}
-          </button>
+          {mode !== "forgot" && (
+            <button
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{
+                width: "100%",
+                background: "none",
+                border: `1px solid ${C.border}`,
+                color: C.textDim,
+                borderRadius: 4,
+                padding: "10px 16px",
+                fontSize: 12,
+                cursor: loading ? "default" : "pointer",
+                fontFamily: "inherit",
+                letterSpacing: 0.5,
+                transition: "all .15s",
+                marginBottom: 8
+              }}
+            >
+              {mode === "signin" ? "Create Account" : "Back to Sign In"}
+            </button>
+          )}
+
+          {mode === "signin" && (
+            <button
+              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{
+                width: "100%",
+                background: "none",
+                border: `1px solid ${C.border}`,
+                color: C.textDim,
+                borderRadius: 4,
+                padding: "10px 16px",
+                fontSize: 12,
+                cursor: loading ? "default" : "pointer",
+                fontFamily: "inherit",
+                letterSpacing: 0.5,
+                transition: "all .15s"
+              }}
+            >
+              Forgot password?
+            </button>
+          )}
+
+          {mode === "forgot" && (
+            <button
+              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
+              disabled={loading}
+              style={{
+                width: "100%",
+                background: "none",
+                border: `1px solid ${C.border}`,
+                color: C.textDim,
+                borderRadius: 4,
+                padding: "10px 16px",
+                fontSize: 12,
+                cursor: loading ? "default" : "pointer",
+                fontFamily: "inherit",
+                letterSpacing: 0.5,
+                transition: "all .15s"
+              }}
+            >
+              Back to Sign In
+            </button>
+          )}
         </div>
 
         <div style={{ fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20, lineHeight: 1.6 }}>
@@ -700,6 +817,11 @@ function AuthScreen() {
 export default function App() {
   const [session, setSession]         = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [view, setView]               = useState("today");
   const [blocks, setBlocks]           = useState(makeDefaults());
   const [tasks, setTasks]             = useState([]);
@@ -731,6 +853,41 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // ── Check for recovery token in URL ──────────────────────────────────
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery")) {
+      setShowResetForm(true);
+    }
+  }, []);
+
+  // ── Handle password reset after email link ────────────────────────────
+  async function handlePasswordReset() {
+    setResetError("");
+    if (resetPassword.length < 6) {
+      setResetError("Password must be at least 6 characters");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: resetPassword });
+      if (error) {
+        setResetError(error.message);
+      } else {
+        setResetSuccess(true);
+        setTimeout(() => {
+          setShowResetForm(false);
+          setResetPassword("");
+          window.location.hash = "";
+          setResetSuccess(false);
+        }, 2000);
+      }
+    } catch (e) {
+      setResetError(e.message);
+    }
+    setResetLoading(false);
+  }
 
   // ── Load data from Supabase ──────────────────────────────────────────
   useEffect(() => {
@@ -839,6 +996,77 @@ export default function App() {
   const archiveCount = Object.keys(archive).length;
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
+
+  if (showResetForm) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: 320 }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 3, color: C.accent, marginBottom: 8 }}>FLUX</div>
+            <div style={{ fontSize: 12, color: C.textDim }}>reset your password</div>
+          </div>
+
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="password"
+                placeholder="new password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handlePasswordReset()}
+                disabled={resetLoading}
+                style={{
+                  width: "100%",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  color: C.text,
+                  borderRadius: 4,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  opacity: resetLoading ? 0.6 : 1
+                }}
+              />
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>min 6 characters</div>
+            </div>
+
+            {resetError && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
+                {resetError}
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+                Password updated! Redirecting...
+              </div>
+            )}
+
+            <button
+              onClick={handlePasswordReset}
+              disabled={resetLoading || !resetPassword}
+              style={{
+                width: "100%",
+                background: C.accent,
+                border: "none",
+                color: "#fff",
+                borderRadius: 4,
+                padding: "10px 16px",
+                fontSize: 12,
+                cursor: resetLoading || !resetPassword ? "default" : "pointer",
+                fontFamily: "inherit",
+                letterSpacing: 0.5,
+                opacity: resetLoading || !resetPassword ? 0.6 : 1,
+                transition: "all .15s"
+              }}
+            >
+              {resetLoading ? "updating..." : "Set New Password"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
   if (!session) return <AuthScreen />;
