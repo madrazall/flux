@@ -1173,7 +1173,8 @@ export default function App() {
                     right: 0, 
                     height: 20, 
                     borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none",
-                    background: i % 2 === 0 ? "transparent" : `${C.surface}20`
+                    background: i % 2 === 0 ? "transparent" : `${C.surface}20`,
+                    pointerEvents: "none"
                   }} />
                 ))}
                 {/* Blocks */}
