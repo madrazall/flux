@@ -220,6 +220,32 @@ function HelpDrawer({ onClose }) {
           </div>
         ))}
  
+        {/* Ko-fi Link */}
+        <div style={{ marginTop: 20, marginBottom: 20 }}>
+          <a 
+            href="https://ko-fi.com/fluxteam" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "12px 14px",
+              background: C.accentDim,
+              border: `1px solid ${C.accent}40`,
+              borderRadius: 6,
+              color: C.accent,
+              textDecoration: "none",
+              fontSize: 12,
+              cursor: "pointer",
+              transition: "all .15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + "80"; e.currentTarget.style.background = C.accent + "15"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.accent + "40"; e.currentTarget.style.background = C.accentDim; }}
+          >
+            <span style={{ fontSize: 14 }}>☕</span>
+            <span>Support on Ko-fi</span>
+          </a>
+        </div>
+ 
         <div style={{ marginTop: 24, padding: "16px 0", borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.8, textAlign: "center" }}>
           flux · your data, your patterns, your pace
         </div>
