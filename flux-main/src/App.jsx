@@ -1,12 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import HelpSystem from './HelpSystem.jsx'
-import { createClient } from "@supabase/supabase-js";
-
-// ── Supabase ─────────────────────────────────────────────────────────
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
 
 // ── Palette ──────────────────────────────────────────────────────────
 const C = {
@@ -606,8 +599,6 @@ function AuthScreen() {
 
 // ══════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [session, setSession]         = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView]               = useState("today");
   const [blocks, setBlocks]           = useState(makeDefaults());
   const [tasks, setTasks]             = useState([]);
@@ -625,59 +616,41 @@ export default function App() {
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
   const [flash, setFlash]             = useState(null);
+  const dragItem = useRef(null);
+  const timelineRef = useRef(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
 
-  // ── Auth ─────────────────────────────────────────────────────────────
+  // ── Load data from localStorage ──────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session); setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // ── Load data from Supabase ──────────────────────────────────────────
-  useEffect(() => {
-    if (!session) return;
     loadData();
-  }, [session]);
+  }, []);
 
   async function loadData() {
     setDbLoading(true);
-    const uid = session.user.id;
     try {
-      const [{ data: userData }, { data: archiveData }, { data: eventsData }] = await Promise.all([
-        supabase.from("user_data").select("*").eq("user_id", uid).single(),
-        supabase.from("archive").select("*").eq("user_id", uid),
-        supabase.from("events").select("*").eq("user_id", uid),
-      ]);
-      if (userData) {
-        if (userData.tags) setTags(userData.tags);
-        if (userData) {
-          if (userData.blocks) setBlocks(userData.blocks);
-          if (userData.tasks) setTasks(userData.tasks);
-          if (userData.mood !== undefined) setMood(userData.mood);
-          if (userData.day_note) setDayNote(userData.day_note);
-          if (userData.wins) setWins(userData.wins);
-          if (userData.hard) setHard(userData.hard);
+      const stored = localStorage.getItem('flux-data');
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.tags) setTags(data.tags);
+        if (data.today_key === todayKey()) {
+          if (data.blocks) setBlocks(data.blocks);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.mood !== undefined) setMood(data.mood);
+          if (data.day_note) setDayNote(data.day_note);
+          if (data.wins) setWins(data.wins);
+          if (data.hard) setHard(data.hard);
         } else {
           // new day — roll over undone tasks
-          const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
-          const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
+          const undone = (data.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
+          const scheduled = (data.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
           setTasks([...undone.map(t => ({ ...t, addedAt: t.addedAt + " (rolled)" })), ...scheduled]);
-          //setBlocks(makeDefaults());
+          setBlocks(makeDefaults());
           setMood(2); setDayNote(""); setWins(""); setHard("");
         }
+        if (data.archive) setArchive(data.archive);
+        if (data.events) setEvents(data.events);
       }
-      if (archiveData) {
-        const archiveObj = {};
-        archiveData.forEach(row => { archiveObj[row.day_key] = row.data; });
-        setArchive(archiveObj);
-      }
-      if (eventsData) setEvents(eventsData.map(e => e.data));
     } catch (e) { console.error("load error", e); }
     setDbLoading(false);
   }

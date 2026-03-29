@@ -208,8 +208,7 @@ footer {
 <nav>
   <div class="nav-logo">Flux</div>
   <div style="display:flex;align-items:center;gap:16px;">
-    <div class="nav-tag">Magic Link Auth</div>
-    <button onclick="openSignIn()" class="nav-signin">Sign in →</button>
+    <div class="nav-tag">Demo Mode</div>
   </div>
 </nav>
 
@@ -382,31 +381,6 @@ footer {
       btn.textContent = 'Send Request →';
       errEl.textContent = 'Something went wrong — try again.';
       errEl.style.display = 'block';
-    }
-  }
-</script>
-
-<script>
-  function openSignIn() {
-    const email = prompt('Enter your email for a magic link:');
-    if (!email) return;
-    sendMagicLink(email);
-  }
-
-  async function sendMagicLink(email) {
-    if (!window.db) {
-      alert('Supabase not initialized.');
-      return;
-    }
-    try {
-      const { error } = await window.db.auth.signInWithOtp({ email });
-      if (error) {
-        alert('Error: ' + error.message);
-      } else {
-        alert('✓ Check your email for the magic link!');
-      }
-    } catch (e) {
-      alert('Error sending link: ' + e.message);
     }
   }
 </script>
