@@ -221,13 +221,16 @@ function HelpDrawer({ onClose }) {
         ))}
  
         {/* Ko-fi Link */}
-        <div style={{ marginTop: 20, marginBottom: 20 }}>
+        <div style={{ marginTop: 20, marginBottom: 20, paddingBottom: 8 }}>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 10, lineHeight: 1.5 }}>
+            Flux is free because you use it. Support helps cover domain, infrastructure, and keeping it free as we grow.
+          </div>
           <a 
             href="https://ko-fi.com/fluxteam" 
             target="_blank" 
             rel="noopener noreferrer"
             style={{
-              display: "flex", alignItems: "center", gap: 10,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               padding: "12px 14px",
               background: C.accentDim,
               border: `1px solid ${C.accent}40`,
@@ -235,6 +238,7 @@ function HelpDrawer({ onClose }) {
               color: C.accent,
               textDecoration: "none",
               fontSize: 12,
+              fontWeight: 500,
               cursor: "pointer",
               transition: "all .15s",
             }}
@@ -242,7 +246,7 @@ function HelpDrawer({ onClose }) {
             onMouseLeave={e => { e.currentTarget.style.borderColor = C.accent + "40"; e.currentTarget.style.background = C.accentDim; }}
           >
             <span style={{ fontSize: 14 }}>☕</span>
-            <span>Support on Ko-fi</span>
+            <span>Buy me a coffee</span>
           </a>
         </div>
  
