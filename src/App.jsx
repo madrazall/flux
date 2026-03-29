@@ -594,219 +594,262 @@ function AuthScreen() {
     setLoading(false);
   }
 
-  async function handlePasswordReset() {
-    setError("");
-    setSuccessMsg("");
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) {
-        setError(error.message);
-      } else {
-        setSuccessMsg("Password updated! Redirecting to login...");
-        setTimeout(() => {
-          setPassword("");
-          setEmail("");
-          setMode("signin");
-          window.location.hash = "";
-        }, 1500);
-      }
-    } catch (e) {
-      setError(e.message);
-    }
-    setLoading(false);
-  }
-
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-      <div style={{ width: "100%", maxWidth: 320 }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 3, color: C.accent, marginBottom: 8 }}>FLUX</div>
-          <div style={{ fontSize: 12, color: C.textDim }}>daily rhythm tracker</div>
-        </div>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+      `}</style>
 
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
-          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 20, textAlign: "center", textTransform: "uppercase" }}>
-            {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
-          </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: "100vh", gap: 0 }}>
+        {/* Left side - Info */}
+        <div style={{ background: C.surface, padding: "60px 40px", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRight: `1px solid ${C.border}` }}>
+          <div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 4, color: C.accent, marginBottom: 12 }}>FLUX</div>
+            <div style={{ fontSize: 16, color: C.textMid, marginBottom: 40, lineHeight: 1.6 }}>
+              Your daily rhythm tracker. Structure your day, track your mood, and build the patterns that matter to you.
+            </div>
 
-          {mode === "forgot" ? (
-            <div style={{ marginBottom: 16 }}>
-              <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  color: C.text,
-                  borderRadius: 4,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  outline: "none",
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
-                enter your email and we'll send you a link to reset your password
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16 }}>Features</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text }}>Daily Blocks</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Schedule your day hour by hour with draggable time blocks</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text }}>Task Management</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Create tasks, schedule them for future dates, track completion</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text }}>Mood Tracking</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Log your energy levels and see patterns over time</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text }}>Archive & Patterns</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Review past days and discover what works best for you</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text }}>Tag System</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Organize blocks by context — work, personal, survival, human stuff</div>
+                  </div>
+                </div>
               </div>
             </div>
-          ) : (
-            <div style={{ marginBottom: 16 }}>
-              <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  color: C.text,
-                  borderRadius: 4,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  outline: "none",
-                  opacity: loading ? 0.6 : 1,
-                  marginBottom: 12
-                }}
-              />
-              <input
-                type="password"
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  color: C.text,
-                  borderRadius: 4,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  outline: "none",
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
+
+            <div>
+              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Philosophy</div>
+              <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.8 }}>
+                Flux isn't about productivity theater. It's about understanding your own rhythm. By tracking what you actually do and how you feel, you build a personal operating system that works for you.
+              </div>
             </div>
-          )}
+          </div>
 
-          {error && (
-            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
-              {error}
+          <div style={{ fontSize: 10, color: C.textDim, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
+              <span>flux · </span>
+              <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
+              <span> · private by design</span>
             </div>
-          )}
-
-          {successMsg && (
-            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
-              {successMsg}
+            <div style={{ color: C.textDim }}>
+              Your data is yours. Encrypted. In your account. Never sold.
             </div>
-          )}
-
-          <button
-            onClick={mode === "forgot" ? handleAuth : handlePasswordReset}
-            disabled={loading || !email || (mode !== "forgot" && !password)}
-            style={{
-              width: "100%",
-              background: C.accent,
-              border: "none",
-              color: "#fff",
-              borderRadius: 4,
-              padding: "10px 16px",
-              fontSize: 12,
-              cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer",
-              fontFamily: "inherit",
-              letterSpacing: 0.5,
-              opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1,
-              marginBottom: 16,
-              transition: "all .15s"
-            }}
-          >
-            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-          </button>
-
-          {mode !== "forgot" && (
-            <button
-              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "none",
-                border: `1px solid ${C.border}`,
-                color: C.textDim,
-                borderRadius: 4,
-                padding: "10px 16px",
-                fontSize: 12,
-                cursor: loading ? "default" : "pointer",
-                fontFamily: "inherit",
-                letterSpacing: 0.5,
-                transition: "all .15s",
-                marginBottom: 8
-              }}
-            >
-              {mode === "signin" ? "Create Account" : "Back to Sign In"}
-            </button>
-          )}
-
-          {mode === "signin" && (
-            <button
-              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "none",
-                border: `1px solid ${C.border}`,
-                color: C.textDim,
-                borderRadius: 4,
-                padding: "10px 16px",
-                fontSize: 12,
-                cursor: loading ? "default" : "pointer",
-                fontFamily: "inherit",
-                letterSpacing: 0.5,
-                transition: "all .15s"
-              }}
-            >
-              Forgot password?
-            </button>
-          )}
-
-          {mode === "forgot" && (
-            <button
-              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "none",
-                border: `1px solid ${C.border}`,
-                color: C.textDim,
-                borderRadius: 4,
-                padding: "10px 16px",
-                fontSize: 12,
-                cursor: loading ? "default" : "pointer",
-                fontFamily: "inherit",
-                letterSpacing: 0.5,
-                transition: "all .15s"
-              }}
-            >
-              Back to Sign In
-            </button>
-          )}
+          </div>
         </div>
 
-        <div style={{ fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20, lineHeight: 1.6 }}>
-          data is stored in your account · private by design
+        {/* Right side - Auth */}
+        <div style={{ background: C.bg, padding: "60px 40px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: 300 }}>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 20, textAlign: "center", textTransform: "uppercase" }}>
+                {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
+              </div>
+
+              {mode === "forgot" ? (
+                <div style={{ marginBottom: 16 }}>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      color: C.text,
+                      borderRadius: 4,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      outline: "none",
+                      opacity: loading ? 0.6 : 1
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+                    we'll send you a link to reset your password
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 16 }}>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      color: C.text,
+                      borderRadius: 4,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      outline: "none",
+                      opacity: loading ? 0.6 : 1,
+                      marginBottom: 12
+                    }}
+                  />
+                  <input
+                    type="password"
+                    placeholder="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      background: C.surface,
+                      border: `1px solid ${C.border}`,
+                      color: C.text,
+                      borderRadius: 4,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      outline: "none",
+                      opacity: loading ? 0.6 : 1
+                    }}
+                  />
+                </div>
+              )}
+
+              {error && (
+                <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
+                  {error}
+                </div>
+              )}
+
+              {successMsg && (
+                <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+                  {successMsg}
+                </div>
+              )}
+
+              <button
+                onClick={handleAuth}
+                disabled={loading || !email || (mode !== "forgot" && !password)}
+                style={{
+                  width: "100%",
+                  background: C.accent,
+                  border: "none",
+                  color: "#fff",
+                  borderRadius: 4,
+                  padding: "10px 16px",
+                  fontSize: 12,
+                  cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  letterSpacing: 0.5,
+                  opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1,
+                  marginBottom: 8,
+                  transition: "all .15s"
+                }}
+              >
+                {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+              </button>
+
+              {mode !== "forgot" && (
+                <button
+                  onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    background: "none",
+                    border: `1px solid ${C.border}`,
+                    color: C.textDim,
+                    borderRadius: 4,
+                    padding: "10px 16px",
+                    fontSize: 12,
+                    cursor: loading ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    letterSpacing: 0.5,
+                    transition: "all .15s",
+                    marginBottom: 8
+                  }}
+                >
+                  {mode === "signin" ? "Create Account" : "Back to Sign In"}
+                </button>
+              )}
+
+              {mode === "signin" && (
+                <button
+                  onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    background: "none",
+                    border: `1px solid ${C.border}`,
+                    color: C.textDim,
+                    borderRadius: 4,
+                    padding: "10px 16px",
+                    fontSize: 12,
+                    cursor: loading ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    letterSpacing: 0.5,
+                    transition: "all .15s"
+                  }}
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              {mode === "forgot" && (
+                <button
+                  onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    background: "none",
+                    border: `1px solid ${C.border}`,
+                    color: C.textDim,
+                    borderRadius: 4,
+                    padding: "10px 16px",
+                    fontSize: 12,
+                    cursor: loading ? "default" : "pointer",
+                    fontFamily: "inherit",
+                    letterSpacing: 0.5,
+                    transition: "all .15s"
+                  }}
+                >
+                  Back to Sign In
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
