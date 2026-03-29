@@ -883,6 +883,15 @@ export default function App() {
     loadData();
   }, [session]);
 
+  // ── Auto-save on changes ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+    const timer = setTimeout(() => {
+      saveToday(false); // show notification on auto-save
+    }, 1000); // wait 1 second after last change before saving
+    return () => clearTimeout(timer);
+  }, [blocks, tasks, mood, dayNote, wins, hard, tags]);
+
   async function loadData() {
     setDbLoading(true);
     const uid = session.user.id;
@@ -1080,14 +1089,48 @@ export default function App() {
         .addbtn{width:100%;background:none;border:1px dashed ${C.border};color:${C.textDim};border-radius:6px;padding:9px;font-size:12px;cursor:pointer;letter-spacing:1px;transition:all .15s;font-family:inherit}
         .addbtn:hover{border-color:${C.accent};color:${C.accent}}
         details summary::-webkit-details-marker{display:none}
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideDown {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(20px); }
+        }
+        .toast-enter { animation: slideUp .35s ease; }
+        .toast-exit { animation: slideDown .35s ease; }
       `}</style>
+
+      {/* Toast Notification */}
+      {flash && (
+        <div className="toast-enter" style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          background: flash === "archived" ? "#10b98120" : C.card,
+          border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`,
+          borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`,
+          borderRadius: 6,
+          padding: "14px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          zIndex: 1000,
+          fontFamily: "inherit",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+        }}>
+          <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "💾"}</span>
+          <span style={{ fontSize: 12, color: C.text, letterSpacing: 0.5 }}>
+            {flash === "archived" ? "Day archived" : "Changes saved"}
+          </span>
+        </div>
+      )}
 
       {/* Nav */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 3, color: C.accent }}>FLUX</div>
-            {flash && <span className="fl" style={{ fontSize: 11, color: flash === "archived" ? "#10b981" : C.textMid }}>{flash === "archived" ? "archived ✓" : "saved"}</span>}
             {dbLoading && <span style={{ fontSize: 11, color: C.textDim }}>syncing...</span>}
           </div>
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
