@@ -208,8 +208,8 @@ footer {
 <nav>
   <div class="nav-logo">Flux</div>
   <div style="display:flex;align-items:center;gap:16px;">
-    <div class="nav-tag">Private access</div>
-    <button onclick="signIn()" class="nav-signin">Sign in →</button>
+    <div class="nav-tag">Magic Link Auth</div>
+    <button onclick="openSignIn()" class="nav-signin">Sign in →</button>
   </div>
 </nav>
 
@@ -387,20 +387,26 @@ footer {
 </script>
 
 <script>
-  async function signIn() {
-    console.log('signIn clicked: redirectTo', window.location.origin);
+  function openSignIn() {
+    const email = prompt('Enter your email for a magic link:');
+    if (!email) return;
+    sendMagicLink(email);
+  }
+
+  async function sendMagicLink(email) {
     if (!window.db) {
-      console.error('Supabase client not initialized.');
-      alert('Supabase client not initialized.');
+      alert('Supabase not initialized.');
       return;
     }
-    const { error } = await window.db.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin }
-    });
-    if (error) {
-      console.error('Error signing in:', error);
-      alert('Sign-in error: ' + error.message);
+    try {
+      const { error } = await window.db.auth.signInWithOtp({ email });
+      if (error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('✓ Check your email for the magic link!');
+      }
+    } catch (e) {
+      alert('Error sending link: ' + e.message);
     }
   }
 </script>
