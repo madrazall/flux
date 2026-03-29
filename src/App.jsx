@@ -567,7 +567,7 @@ function AuthScreen() {
         if (signUpError) {
           setError(signUpError.message);
         } else {
-          setSuccessMsg("Account created! Please check your email to confirm.");
+          setSuccessMsg("Account created! Check your email to confirm.");
           setTimeout(() => {
             setMode("signin");
             setPassword("");
@@ -584,7 +584,7 @@ function AuthScreen() {
         if (resetError) {
           setError(resetError.message);
         } else {
-          setSuccessMsg("Check your email for the password reset link!");
+          setSuccessMsg("Reset link sent to your email");
           setEmail("");
         }
       }
@@ -595,263 +595,208 @@ function AuthScreen() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace", position: "relative", overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
+        
+        .glow {
+          position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+          width: 800px; height: 600px;
+          background: radial-gradient(ellipse at center, ${C.accent}18 0%, transparent 70%);
+          pointer-events: none; z-index: 0;
+        }
+        
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .feature-card {
+          background: ${C.card}; border: 1px solid ${C.border};
+          padding: 28px 24px; position: relative; overflow: hidden; transition: border-color .2s;
+        }
+        .feature-card:hover { border-color: ${C.accent}30; }
+        .feature-card::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+          background: ${C.accent}; transform: scaleX(0); transform-origin: left; transition: transform .3s ease;
+        }
+        .feature-card:hover::before { transform: scaleX(1); }
       `}</style>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: "100vh", gap: 0 }}>
-        {/* Left side - Info */}
-        <div style={{ background: C.surface, padding: "60px 40px", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRight: `1px solid ${C.border}` }}>
-          <div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 4, color: C.accent, marginBottom: 12 }}>FLUX</div>
-            <div style={{ fontSize: 16, color: C.textMid, marginBottom: 40, lineHeight: 1.6 }}>
-              Your daily rhythm tracker. Structure your day, track your mood, and build the patterns that matter to you.
-            </div>
+      <div className="glow" />
 
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16 }}>Features</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: C.text }}>Daily Blocks</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Schedule your day hour by hour with draggable time blocks</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: C.text }}>Task Management</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Create tasks, schedule them for future dates, track completion</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: C.text }}>Mood Tracking</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Log your energy levels and see patterns over time</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: C.text }}>Archive & Patterns</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Review past days and discover what works best for you</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, marginTop: 2 }}>▸</span>
-                  <div>
-                    <div style={{ fontSize: 13, color: C.text }}>Tag System</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>Organize blocks by context — work, personal, survival, human stuff</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* Nav */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.border}40`, backdropFilter: "blur(12px)", background: C.bg + "90" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: C.accent }}>FLUX</div>
+      </div>
 
-            <div>
-              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Philosophy</div>
-              <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.8 }}>
-                Flux isn't about productivity theater. It's about understanding your own rhythm. By tracking what you actually do and how you feel, you build a personal operating system that works for you.
-              </div>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 10, color: C.textDim, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
-              <span>flux · </span>
-              <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
-              <span> · private by design</span>
-            </div>
-            <div style={{ color: C.textDim }}>
-              Your data is yours. Encrypted. In your account. Never sold.
-            </div>
-          </div>
+      {/* Hero Section */}
+      <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", padding: "120px 48px 80px", maxWidth: 960, margin: "0 auto" }}>
+        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>
+          A different kind of daily
         </div>
 
-        {/* Right side - Auth */}
-        <div style={{ background: C.bg, padding: "60px 40px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ width: "100%", maxWidth: 300 }}>
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 20, textAlign: "center", textTransform: "uppercase" }}>
-                {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
-              </div>
+        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .95, letterSpacing: -2, color: C.text, marginBottom: 8, opacity: 0, animation: "fadeUp .7s ease .35s forwards" }}>
+          Built for brains<br />
+          <em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px, 9vw, 108px)", letterSpacing: 6, display: "block" }}>FLUX</span>
+        </h1>
 
-              {mode === "forgot" ? (
-                <div style={{ marginBottom: 16 }}>
-                  <input
-                    type="email"
-                    placeholder="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                    disabled={loading}
-                    style={{
-                      width: "100%",
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      color: C.text,
-                      borderRadius: 4,
-                      padding: "10px 12px",
-                      fontSize: 13,
-                      outline: "none",
-                      opacity: loading ? 0.6 : 1
-                    }}
-                  />
-                  <div style={{ fontSize: 11, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
-                    we'll send you a link to reset your password
-                  </div>
-                </div>
-              ) : (
-                <div style={{ marginBottom: 16 }}>
-                  <input
-                    type="email"
-                    placeholder="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                    disabled={loading}
-                    style={{
-                      width: "100%",
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      color: C.text,
-                      borderRadius: 4,
-                      padding: "10px 12px",
-                      fontSize: 13,
-                      outline: "none",
-                      opacity: loading ? 0.6 : 1,
-                      marginBottom: 12
-                    }}
-                  />
-                  <input
-                    type="password"
-                    placeholder="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                    disabled={loading}
-                    style={{
-                      width: "100%",
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      color: C.text,
-                      borderRadius: 4,
-                      padding: "10px 12px",
-                      fontSize: 13,
-                      outline: "none",
-                      opacity: loading ? 0.6 : 1
-                    }}
-                  />
-                </div>
-              )}
+        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 24, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
+          A daily planner that bends instead of breaks. Structure without the rigidity. Flexible blocks, real data about how your days actually go, and a rhythm that works <em>with</em> you.
+        </p>
 
-              {error && (
-                <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
-                  {error}
-                </div>
-              )}
+        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
+          Built for clarity. Built to last.
+        </p>
 
-              {successMsg && (
-                <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
-                  {successMsg}
-                </div>
-              )}
-
-              <button
-                onClick={handleAuth}
-                disabled={loading || !email || (mode !== "forgot" && !password)}
-                style={{
-                  width: "100%",
-                  background: C.accent,
-                  border: "none",
-                  color: "#fff",
-                  borderRadius: 4,
-                  padding: "10px 16px",
-                  fontSize: 12,
-                  cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer",
-                  fontFamily: "inherit",
-                  letterSpacing: 0.5,
-                  opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1,
-                  marginBottom: 8,
-                  transition: "all .15s"
-                }}
-              >
-                {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-              </button>
-
-              {mode !== "forgot" && (
-                <button
-                  onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    background: "none",
-                    border: `1px solid ${C.border}`,
-                    color: C.textDim,
-                    borderRadius: 4,
-                    padding: "10px 16px",
-                    fontSize: 12,
-                    cursor: loading ? "default" : "pointer",
-                    fontFamily: "inherit",
-                    letterSpacing: 0.5,
-                    transition: "all .15s",
-                    marginBottom: 8
-                  }}
-                >
-                  {mode === "signin" ? "Create Account" : "Back to Sign In"}
-                </button>
-              )}
-
-              {mode === "signin" && (
-                <button
-                  onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    background: "none",
-                    border: `1px solid ${C.border}`,
-                    color: C.textDim,
-                    borderRadius: 4,
-                    padding: "10px 16px",
-                    fontSize: 12,
-                    cursor: loading ? "default" : "pointer",
-                    fontFamily: "inherit",
-                    letterSpacing: 0.5,
-                    transition: "all .15s"
-                  }}
-                >
-                  Forgot password?
-                </button>
-              )}
-
-              {mode === "forgot" && (
-                <button
-                  onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    background: "none",
-                    border: `1px solid ${C.border}`,
-                    color: C.textDim,
-                    borderRadius: 4,
-                    padding: "10px 16px",
-                    fontSize: 12,
-                    cursor: loading ? "default" : "pointer",
-                    fontFamily: "inherit",
-                    letterSpacing: 0.5,
-                    transition: "all .15s"
-                  }}
-                >
-                  Back to Sign In
-                </button>
-              )}
+        {/* Auth Form */}
+        <div style={{ opacity: 0, animation: "fadeUp .7s ease .65s forwards", width: "100%", maxWidth: 360 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 10 }}>
+              {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
             </div>
+          </div>
+
+          {mode === "forgot" ? (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="email"
+                placeholder="your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1, marginBottom: 12 }}
+              />
+              <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
+                we'll send you a link to reset your password
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
+              />
+            </div>
+          )}
+
+          {error && (
+            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
+              {error}
+            </div>
+          )}
+
+          {successMsg && (
+            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+              {successMsg}
+            </div>
+          )}
+
+          <button
+            onClick={handleAuth}
+            disabled={loading || !email || (mode !== "forgot" && !password)}
+            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8, transition: "all .15s" }}
+          >
+            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+          </button>
+
+          {mode !== "forgot" && (
+            <button
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s", marginBottom: 8 }}
+            >
+              {mode === "signin" ? "Create Account" : "Back to Sign In"}
+            </button>
+          )}
+
+          {mode === "signin" && (
+            <button
+              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
+            >
+              Forgot password?
+            </button>
+          )}
+
+          {mode === "forgot" && (
+            <button
+              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
+            >
+              Back to Sign In
+            </button>
+          )}
+
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+            your data is yours · private by design
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "0 48px" }}>
+        <hr style={{ border: "none", borderTop: `1px solid ${C.border}` }} />
+      </div>
+
+      {/* Features */}
+      <section style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
+          {[
+            { num: "01", title: "A schedule that moves with you", desc: "Drag blocks to reorder when things shift. Time is flexible, structure is the point." },
+            { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
+            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag—use it enough and it becomes a tracked category." },
+            { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
+            { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
+            { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
+          ].map(feature => (
+            <div key={feature.num} className="feature-card">
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{feature.num}</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{feature.title}</div>
+              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{feature.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Manifesto */}
+      <div style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "60px 48px", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${C.accent}08 0%, transparent 60%)`, pointerEvents: "none" }} />
+        <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48, alignItems: "center", position: "relative", zIndex: 1 }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 3, color: C.accent, lineHeight: .9, opacity: .15 }}>FLUX</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.5vw, 26px)", lineHeight: 1.5, color: C.textMid, fontStyle: "italic" }}>
+            This isn't productivity theater. It's about understanding <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> rhythm. By tracking what you actually do and how you feel, you build <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> operating system.
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: C.textDim }}>FLUX</div>
+        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>
+          built with care · <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
+        </div>
+      </footer>
     </div>
   );
 }
