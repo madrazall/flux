@@ -249,6 +249,29 @@ function HelpDrawer({ onClose }) {
             <span>Buy me a coffee</span>
           </a>
         </div>
+
+        {/* Feedback Link */}
+        <a 
+          href="mailto:fluxteam@proton.me?subject=Flux Feedback&body=Hi! I have a suggestion or fix for Flux:%0A%0A" 
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "12px 14px",
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            color: C.text,
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: "pointer",
+            transition: "all .15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; e.currentTarget.style.background = C.accentDim; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.text; e.currentTarget.style.background = C.card; }}
+        >
+          <span style={{ fontSize: 14 }}>✉️</span>
+          <span>Send feedback or suggestions</span>
+        </a>
  
         <div style={{ marginTop: 24, padding: "16px 0", borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.8, textAlign: "center" }}>
           flux · your data, your patterns, your pace
