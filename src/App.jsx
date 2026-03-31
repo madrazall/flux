@@ -410,7 +410,7 @@ function UpcomingDrawer({ events }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer" }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ upcoming</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
@@ -531,7 +531,7 @@ function CalendarView({ events, onEventsChange }) {
               const d = new Date(e.date + "T00:00:00");
               const isItToday = isToday(e.date);
               return (
-                <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "40" : C.border}`, borderRadius: 6 }}>
+                <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
                   <div style={{ textAlign: "center", minWidth: 32 }}>
                     <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
                     <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
@@ -571,273 +571,508 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// ── Email/Password Auth ──────────────────────────────────────────────
-function AuthScreen() {
+// ── Magic Link Auth ───────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("signin");
+  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
 
-  async function handleAuth() {
-    setError("");
-    setSuccessMsg("");
-    setLoading(true);
-    try {
-      if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
-        if (signUpError) {
-          setError(signUpError.message);
-        } else {
-          setSuccessMsg("Account created! Check your email to confirm.");
-          setTimeout(() => {
-            setMode("signin");
-            setPassword("");
-            setEmail("");
-          }, 2000);
-        }
-      } else if (mode === "signin") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          setError(signInError.message);
-        }
-      } else if (mode === "forgot") {
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
-        if (resetError) {
-          setError(resetError.message);
-        } else {
-          setSuccessMsg("Reset link sent to your email");
-          setEmail("");
-        }
-      }
-    } catch (e) {
-      setError(e.message);
-    }
+  async function sendLink() {
+    if (!email.trim()) return;
+    setLoading(true); setError("");
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin }
+    });
     setLoading(false);
+    if (error) setError(error.message);
+    else setSent(true);
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace", position: "relative", overflow: "hidden" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}
-        
-        .glow {
-          position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
-          width: 800px; height: 600px;
-          background: radial-gradient(ellipse at center, ${C.accent}18 0%, transparent 70%);
-          pointer-events: none; z-index: 0;
-        }
-        
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .feature-card {
-          background: ${C.card}; border: 1px solid ${C.border};
-          padding: 28px 24px; position: relative; overflow: hidden; transition: border-color .2s;
-        }
-        .feature-card:hover { border-color: ${C.accent}30; }
-        .feature-card::before {
-          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-          background: ${C.accent}; transform: scaleX(0); transform-origin: left; transition: transform .3s ease;
-        }
-        .feature-card:hover::before { transform: scaleX(1); }
-      `}</style>
-
-      <div className="glow" />
-
-      {/* Nav */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: C.accent }}>FLUX</div>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');*{box-sizing:border-box;margin:0;padding:0}input{font-family:inherit}`}</style>
+      <div style={{ width: "100%", maxWidth: 380, padding: 32 }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 42, letterSpacing: 4, color: C.accent, marginBottom: 4 }}>FLUX</div>
+        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 40 }}>DAILY SCHEDULE + JOURNAL</div>
+        {!sent ? (
+          <>
+            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 16, lineHeight: 1.6 }}>enter your email and we'll send you a link — no password needed</div>
+            <input autoFocus type="email" value={email} onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendLink()}
+              placeholder="your@email.com"
+              style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 14, outline: "none", marginBottom: 12 }} />
+            {error && <div style={{ fontSize: 11, color: C.accent, marginBottom: 10 }}>{error}</div>}
+            <button onClick={sendLink} disabled={loading}
+              style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: loading ? .6 : 1 }}>
+              {loading ? "sending..." : "send magic link →"}
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 16 }}>📬</div>
+            <div style={{ fontSize: 14, color: C.text, marginBottom: 8 }}>check your email</div>
+            <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.7 }}>we sent a link to <span style={{ color: C.textMid }}>{email}</span><br />click it to get in — it expires in 1 hour</div>
+            <button onClick={() => setSent(false)} style={{ marginTop: 24, background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "8px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>use a different email</button>
+          </div>
+        )}
       </div>
-
-      {/* Hero Section */}
-      <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", padding: "120px 48px 80px", maxWidth: 960 }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>
-          A different kind of daily
-        </div>
-
-        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .95, letterSpacing: -2, color: C.text, marginBottom: 8, opacity: 0, animation: "fadeUp .7s ease .3s forwards" }}>
-          Built for brains<br />
-          <em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px, 9vw, 108px)", letterSpacing: 6, display: "block" }}>FLUX</span>
-        </h1>
-
-        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 24, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
-          A daily planner that bends instead of breaks. Structure without the rigidity. Flexible blocks, real data about how your days actually go, and a rhythm that works <em>with</em> you.
-        </p>
-
-        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
-          Built for clarity. Built to last.
-        </p>
-
-        {/* Auth Form */}
-        <div style={{ opacity: 0, animation: "fadeUp .7s ease .65s forwards", width: "100%", maxWidth: 360 }}>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 10 }}>
-              {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
-            </div>
-          </div>
-
-          {mode === "forgot" ? (
-            <div style={{ marginBottom: 16 }}>
-              <input
-                type="email"
-                placeholder="your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit" }}
-              />
-              <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
-                we'll send you a link to reset your password
-              </div>
-            </div>
-          ) : (
-            <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-              <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit" }}
-              />
-              <input
-                type="password"
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit" }}
-              />
-            </div>
-          )}
-
-          {error && (
-            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
-              {error}
-            </div>
-          )}
-
-          {successMsg && (
-            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
-              {successMsg}
-            </div>
-          )}
-
-          <button
-            onClick={handleAuth}
-            disabled={loading || !email || (mode !== "forgot" && !password)}
-            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1 }}
-          >
-            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-          </button>
-
-          {mode !== "forgot" && (
-            <button
-              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", marginTop: 8 }}
-            >
-              {mode === "signin" ? "Create Account" : "Back to Sign In"}
-            </button>
-          )}
-
-          {mode === "signin" && (
-            <button
-              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", marginTop: 8 }}
-            >
-              Forgot password?
-            </button>
-          )}
-
-          {mode === "forgot" && (
-            <button
-              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", marginTop: 8 }}
-            >
-              Back to Sign In
-            </button>
-          )}
-
-          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
-            your data is yours · private by design
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "80px 48px" }}>
-        <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
-          {[
-            { num: "01", title: "A schedule that moves with you", desc: "Drag blocks to reorder when things shift. Resize blocks precisely. Time is flexible, structure is the point." },
-            { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
-            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag—use it enough and it becomes a tracked category." },
-            { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
-            { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
-            { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
-          ].map(feature => (
-            <div key={feature.num} className="feature-card">
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{feature.num}</div>
-              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{feature.title}</div>
-              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{feature.desc}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Manifesto */}
-      <div style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "60px 48px", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${C.accent}08 0%, transparent 60%)`, pointerEvents: "none" }} />
-        <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48, alignItems: "center", position: "relative", zIndex: 1 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 3, color: C.accent, lineHeight: .9, opacity: .15 }}>FLUX</div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.5vw, 26px)", lineHeight: 1.5, color: C.textMid, fontStyle: "italic" }}>
-            This isn't productivity theater. It's about understanding <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> rhythm. By tracking what you actually do and how you feel, you get real signal. Not judgment.
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: C.textDim }}>FLUX</div>
-        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>
-          built with care · <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
-        </div>
-      </footer>
     </div>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
 export default function App() {
   const [session, setSession]         = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [showResetForm, setShowResetForm] = useState(false);
-  const [resetPassword, setResetPassword] = useState("");
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState("");
-  const [resetSuccess, setResetSuccess] = useState(false);
   const [view, setView]               = useState("today");
   const [blocks, setBlocks]           = useState(makeDefaults());
   const [tasks, setTasks]             = useState([]);
   const [events, setEvents]           = useState([]);
   const [tags, setTags]               = useState(SEED_TAGS);
   const [dragging, setDragging]       = useState(null);
-  const [resizing, setResizing]       = useState(null);
+  const [dragOver, setDragOver]       = useState(null);
   const [mood, setMood]               = useState(2);
   const [dayNote, setDayNote]         = useState("");
   const [wins, setWins]               = useState("");
   const [hard, setHard]               = useState("");
   const [archive, setArchive]         = useState({});
-  const [addingBlock, setAddingBlock] = useState
+  const [addingBlock, setAddingBlock] = useState(false);
+  const [newBlock, setNewBlock]       = useState({ tag: "work", label: "", time: "9:00am" });
+  const [expandedArchive, setExpandedArchive] = useState(null);
+  const [editingNote, setEditingNote] = useState(null);
+  const [flash, setFlash]             = useState(null);
+  const [dbLoading, setDbLoading]     = useState(false);
+  const dragItem = useRef(null);
+
+  // ── Auth ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session); setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ── Load data from Supabase ──────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+    loadData();
+  }, [session]);
+
+  async function loadData() {
+    setDbLoading(true);
+    const uid = session.user.id;
+    try {
+      const [{ data: userData }, { data: archiveData }, { data: eventsData }] = await Promise.all([
+        supabase.from("user_data").select("*").eq("user_id", uid).single(),
+        supabase.from("archive").select("*").eq("user_id", uid),
+        supabase.from("events").select("*").eq("user_id", uid),
+      ]);
+      if (userData) {
+        if (userData.tags) setTags(userData.tags);
+        if (userData.today_key === todayKey()) {
+          if (userData.blocks) setBlocks(userData.blocks);
+          if (userData.tasks) setTasks(userData.tasks);
+          if (userData.mood !== undefined) setMood(userData.mood);
+          if (userData.day_note) setDayNote(userData.day_note);
+          if (userData.wins) setWins(userData.wins);
+          if (userData.hard) setHard(userData.hard);
+        } else {
+          // new day — roll over undone tasks
+          const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
+          const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
+          setTasks([...undone.map(t => ({ ...t, addedAt: t.addedAt + " (rolled)" })), ...scheduled]);
+          setBlocks(makeDefaults());
+          setMood(2); setDayNote(""); setWins(""); setHard("");
+        }
+      }
+      if (archiveData) {
+        const archiveObj = {};
+        archiveData.forEach(row => { archiveObj[row.day_key] = row.data; });
+        setArchive(archiveObj);
+      }
+      if (eventsData) setEvents(eventsData.map(e => e.data));
+    } catch (e) { console.error("load error", e); }
+    setDbLoading(false);
+  }
+
+  async function saveToday(quiet = false) {
+    if (!session) return;
+    const uid = session.user.id;
+    const payload = { user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags };
+    await supabase.from("user_data").upsert(payload, { onConflict: "user_id" });
+    if (!quiet) { setFlash("saved"); setTimeout(() => setFlash(null), 1600); }
+  }
+
+  async function archiveDay() {
+    if (!session) return;
+    const uid = session.user.id;
+    let updatedTags = [...tags];
+    blocks.forEach(b => { if (b.tag) updatedTags = bumpTagUse(b.tag, updatedTags); });
+    setTags(updatedTags);
+    const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, date: today(), key: todayKey() };
+    await Promise.all([
+      supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
+      supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks }, { onConflict: "user_id" }),
+    ]);
+    const updatedArchive = { ...archive, [todayKey()]: dayData };
+    setArchive(updatedArchive);
+    const undone = tasks.filter(t => !t.done);
+    setTasks(undone);
+    setFlash("archived"); setTimeout(() => setFlash(null), 2000);
+  }
+
+  async function saveEvents(newEvents) {
+    setEvents(newEvents);
+    if (!session) return;
+    const uid = session.user.id;
+    await supabase.from("events").delete().eq("user_id", uid);
+    if (newEvents.length > 0) {
+      await supabase.from("events").insert(newEvents.map(e => ({ user_id: uid, event_id: e.id, data: e })));
+    }
+  }
+
+  async function persistTags(t) {
+    setTags(t);
+    if (!session) return;
+    const uid = session.user.id;
+    await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), tags: t }, { onConflict: "user_id" });
+  }
+
+  function handleDragStart(id) { dragItem.current = id; setDragging(id); }
+  function handleDragOver(e, id) { e.preventDefault(); setDragOver(id); }
+  function handleDrop(targetId) {
+    if (!dragItem.current || dragItem.current === targetId) { setDragging(null); setDragOver(null); return; }
+    const from = blocks.findIndex(b => b.id === dragItem.current), to = blocks.findIndex(b => b.id === targetId);
+    const next = [...blocks]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved);
+    setBlocks(next); setDragging(null); setDragOver(null); dragItem.current = null;
+  }
+  function updateBlock(id, patch) { setBlocks(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
+  function deleteBlock(id) { setBlocks(blocks.filter(b => b.id !== id)); }
+  function addBlock() {
+    if (!newBlock.label.trim()) return;
+    setBlocks([...blocks, { ...newBlock, id: genId(), note: "" }]);
+    setNewBlock({ tag: "work", label: "", time: "9:00am" }); setAddingBlock(false);
+  }
+
+  const archiveCount = Object.keys(archive).length;
+  const patterns = computePatterns(archive, tags);
+  const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
+
+  if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
+  if (!session) return <AuthScreen />;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
+        textarea,input{font-family:inherit}
+        .br:hover .ba{opacity:1!important}
+        .task-row:hover .task-del{opacity:1!important}
+        .drag-over{border-top:2px solid ${C.accent}!important}
+        .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
+        .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
+        .nav:not(.on){color:${C.textDim}}
+        .nav:hover:not(.on){color:${C.textMid}}
+        .ac{cursor:pointer;transition:background .15s}
+        .ac:hover{background:#222226!important}
+        .fl{animation:fi .25s ease}
+        @keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+        .tag-chip{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;margin:3px 3px 0 0;border:1px solid}
+        .addbtn{width:100%;background:none;border:1px dashed ${C.border};color:${C.textDim};border-radius:6px;padding:9px;font-size:12px;cursor:pointer;letter-spacing:1px;transition:all .15s;font-family:inherit}
+        .addbtn:hover{border-color:${C.accent};color:${C.accent}}
+        details summary::-webkit-details-marker{display:none}
+      `}</style>
+
+      {/* Nav */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 3, color: C.accent }}>FLUX</div>
+            {flash && <span className="fl" style={{ fontSize: 11, color: flash === "archived" ? "#10b981" : C.textMid }}>{flash === "archived" ? "archived ✓" : "saved"}</span>}
+            {dbLoading && <span style={{ fontSize: 11, color: C.textDim }}>syncing...</span>}
+          </div>
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
+            <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
+            <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
+            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px 24px 80px" }}>
+
+        {/* ══ TODAY ══ */}
+        {view === "today" && <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag to reorder · hover for options</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {MOODS.map((m, i) => (
+                  <button key={i} onClick={() => setMood(i)} style={{ background: mood === i ? C.accentDim : "none", border: mood === i ? `1px solid ${C.accent}` : `1px solid ${C.border}`, borderRadius: 4, padding: "3px 6px", cursor: "pointer", fontSize: 10, color: mood === i ? C.accent : C.textDim, transition: "all .15s", fontFamily: "inherit" }}>{m}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {promotedTags.length > 0 && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>tags:</span>
+              {promotedTags.map(t => <TagPill key={t.id} tag={t} small />)}
+            </div>
+          )}
+
+          {/* Blocks */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
+            {blocks.map(block => {
+              const tag = resolveTag(block.tag, tags);
+              return (
+                <div key={block.id} className={`br${dragOver === block.id ? " drag-over" : ""}`}
+                  draggable onDragStart={() => handleDragStart(block.id)}
+                  onDragOver={e => handleDragOver(e, block.id)} onDrop={() => handleDrop(block.id)}
+                  onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                  style={{ background: dragging === block.id ? "#1e1e21" : C.card, border: `1px solid ${dragging === block.id ? tag.color : C.border}`, borderLeft: `3px solid ${tag.color || C.border}`, borderRadius: 6, padding: "10px 14px", cursor: "grab", opacity: dragging === block.id ? .5 : 1, transition: "border-color .15s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ color: C.textDim, fontSize: 13, userSelect: "none" }}>⠿</span>
+                    <select value={block.time} onChange={e => updateBlock(block.id, { time: e.target.value })} onClick={e => e.stopPropagation()}
+                      style={{ background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}30`, color: tag.color || C.textDim, borderRadius: 3, fontSize: 11, padding: "2px 5px", cursor: "pointer", minWidth: 72, fontFamily: "inherit" }}>
+                      {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <span style={{ flex: 1, fontSize: 13, color: C.text }}>{block.label}</span>
+                    <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
+                      <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
+                    </div>
+                    <div className="ba" style={{ display: "flex", gap: 4, opacity: 0, transition: "opacity .15s" }}>
+                      <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "2px 4px" }} title="note">📝</button>
+                      <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }} title="remove">✕</button>
+                    </div>
+                  </div>
+                  {editingNote === block.id && (
+                    <textarea autoFocus placeholder="note this block..." value={block.note}
+                      onChange={e => updateBlock(block.id, { note: e.target.value })}
+                      onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
+                      style={{ width: "100%", marginTop: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none" }} />
+                  )}
+                  {block.note && editingNote !== block.id && (
+                    <div style={{ marginTop: 5, fontSize: 11, color: C.textMid, paddingLeft: 24, fontStyle: "italic" }}>{block.note}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {addingBlock ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 22 }}>
+              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })}
+                  onKeyDown={e => e.key === "Enter" && addBlock()}
+                  style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 130 }} />
+                <div style={{ fontSize: 11, color: C.textDim }}>tag:</div>
+                <TagSelector tags={tags} value={newBlock.tag} onChange={tagId => setNewBlock({ ...newBlock, tag: tagId })} onCreateTag={persistTags} />
+                <select value={newBlock.time} onChange={e => setNewBlock({ ...newBlock, time: e.target.value })}
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, fontFamily: "inherit" }}>
+                  {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={addBlock} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+                <button onClick={() => setAddingBlock(false)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button className="addbtn" onClick={() => setAddingBlock(true)} style={{ marginBottom: 22 }}>+ add block</button>
+          )}
+
+          {/* Drawers */}
+          <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
+          <UpcomingDrawer events={events} />
+
+          {/* Journal */}
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 15 }}>END OF DAY DEBRIEF</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                { label: "WINS — what actually worked", val: wins, set: setWins, ph: "even tiny ones count..." },
+                { label: "HARD STUFF — what derailed you", val: hard, set: setHard, ph: "no judgment, just data..." },
+                { label: "FREE NOTE — brain dump", val: dayNote, set: setDayNote, ph: "whatever's still bouncing around...", tall: true },
+              ].map(f => (
+                <div key={f.label}>
+                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>{f.label}</label>
+                  <textarea value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, padding: "10px 12px", resize: "none", minHeight: f.tall ? 84 : 64, outline: "none", lineHeight: 1.6 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save draft</button>
+              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive day →</button>
+            </div>
+          </div>
+        </>}
+
+        {/* ══ CALENDAR ══ */}
+        {view === "calendar" && <CalendarView events={events} onEventsChange={saveEvents} />}
+
+        {/* ══ ARCHIVE ══ */}
+        {view === "archive" && <>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>ARCHIVE</div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{archiveCount} days logged · click to expand</div>
+          </div>
+          {archiveCount === 0 && <div style={{ color: C.textDim, fontSize: 13, padding: "40px 0", textAlign: "center" }}>no archived days yet</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {Object.entries(archive).sort((a, b) => b[0].localeCompare(a[0])).map(([key, day]) => {
+              const isOpen = expandedArchive === key;
+              const doneTasks = (day.tasks || []).filter(t => t.done);
+              const pendingTasks = (day.tasks || []).filter(t => !t.done);
+              return (
+                <div key={key} className="ac" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}
+                  onClick={() => setExpandedArchive(isOpen ? null : key)}>
+                  <div style={{ padding: "11px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13 }}>{day.date || key}</div>
+                      <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                        {day.blocks?.length || 0} blocks · {MOODS[day.mood ?? 2]}
+                        {day.tasks?.length > 0 && <span style={{ marginLeft: 8 }}>{doneTasks.length}/{day.tasks.length} tasks done</span>}
+                      </div>
+                    </div>
+                    <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
+                  </div>
+                  {isOpen && (
+                    <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>SCHEDULE</div>
+                        {(day.blocks || []).map(b => {
+                          const t = resolveTag(b.tag, tags);
+                          return (
+                            <div key={b.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 5 }}>
+                              <span style={{ fontSize: 10, color: t.color, minWidth: 62 }}>{b.time}</span>
+                              <span style={{ fontSize: 12, color: C.text }}>{b.label}</span>
+                              <span style={{ fontSize: 10, color: t.color, opacity: .7 }}>{t.label}</span>
+                              {b.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {b.note}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {day.tasks?.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>TASKS</div>
+                          {doneTasks.map(t => (
+                            <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                              <span style={{ fontSize: 11, color: "#10b981" }}>✓</span>
+                              <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{t.label}</span>
+                              {t.doneAt && <span style={{ fontSize: 10, color: C.textDim }}>{t.doneAt}</span>}
+                            </div>
+                          ))}
+                          {pendingTasks.map(t => (
+                            <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                              <span style={{ fontSize: 11, color: C.textDim }}>○</span>
+                              <span style={{ fontSize: 12, color: C.textDim }}>{t.label}</span>
+                              <span style={{ fontSize: 10, color: C.accent, opacity: .6 }}>rolled over</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {day.wins && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>WINS</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.wins}</div></div>}
+                      {day.hard && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>HARD STUFF</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.hard}</div></div>}
+                      {day.day_note && <div><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>NOTES</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.day_note}</div></div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>}
+
+        {/* ══ PATTERNS ══ */}
+        {view === "patterns" && <>
+          {archiveCount < 3 ? (
+            <div style={{ textAlign: "center", padding: "60px 0" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+              <div style={{ color: C.textMid, fontSize: 14, marginBottom: 6 }}>not enough data yet</div>
+              <div style={{ color: C.textDim, fontSize: 12 }}>archive {3 - archiveCount} more day{3 - archiveCount !== 1 ? "s" : ""} to unlock</div>
+            </div>
+          ) : <>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>PATTERNS</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{patterns.totalDays} days · no judgment, just signal</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "streak", value: `${patterns.streak}d`, sub: "in a row" },
+                { label: "avg energy", value: MOODS[Math.round(patterns.avgMood)]?.split(" ")[0], sub: `${patterns.avgMood} / 4` },
+                { label: "task rate", value: patterns.taskCompletionRate != null ? `${patterns.taskCompletionRate}%` : "—", sub: "completed" },
+              ].map(s => (
+                <div key={s.label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "13px 14px", textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontFamily: "'Bebas Neue',sans-serif", color: C.accent, letterSpacing: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: C.textDim, marginTop: 2, letterSpacing: .5 }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: C.textDim }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+            {patterns.moodData.length >= 3 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "15px 18px", marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>ENERGY — last {patterns.moodData.length} days</div>
+                <Sparkline data={patterns.moodData} />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+                  <span style={{ fontSize: 10, color: C.textDim }}>{patterns.moodData[0]?.date?.split(",")[0]}</span>
+                  <span style={{ fontSize: 10, color: C.textDim }}>today</span>
+                </div>
+              </div>
+            )}
+            {patterns.dowAvg.length > 0 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "15px 18px", marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 13 }}>ENERGY BY DAY OF WEEK</div>
+                {patterns.dowAvg.slice(0, 5).map(d => (
+                  <MiniBar key={d.dow} label={d.dow} value={d.avg} max={4}
+                    color={d.avg >= 3 ? "#10b981" : d.avg >= 2 ? "#6c63ff" : C.accent}
+                    sub={MOODS[Math.round(d.avg)]?.split(" ")[0]} />
+                ))}
+              </div>
+            )}
+            {patterns.tagDist.length > 0 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "15px 18px", marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 13 }}>WHERE YOUR TIME GOES</div>
+                {patterns.tagDist.slice(0, 8).map(([tagId, count]) => {
+                  const t = resolveTag(tagId, tags);
+                  return <MiniBar key={tagId} label={t.label} value={count} max={patterns.tagDist[0][1]} color={t.color} sub={`${count} blocks · ${Math.round(count / patterns.totalBlocks * 100)}%`} />;
+                })}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+              {patterns.winWords.length > 0 && (
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "13px 15px" }}>
+                  <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 9 }}>WIN THEMES</div>
+                  {patterns.winWords.map(([w, n]) => <span key={w} className="tag-chip" style={{ color: "#10b981", borderColor: "#10b98140", background: "#0d2e22" }}>{w} <span style={{ opacity: .5 }}>×{n}</span></span>)}
+                </div>
+              )}
+              {patterns.derailWords.length > 0 && (
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "13px 15px" }}>
+                  <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 9 }}>RECURRING FRICTION</div>
+                  {patterns.derailWords.map(([w, n]) => <span key={w} className="tag-chip" style={{ color: "#f59e0b", borderColor: "#f59e0b40", background: "#2d2010" }}>{w} <span style={{ opacity: .5 }}>×{n}</span></span>)}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, textAlign: "center", paddingTop: 4, lineHeight: 1.8 }}>
+              patterns are observations, not verdicts<br /><span style={{ opacity: .4 }}>signal gets clearer the longer you log</span>
+            </div>
+          </>}
+        </>}
+      </div>
+    </div>
+  );
+}
+
