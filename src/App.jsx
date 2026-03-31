@@ -93,27 +93,6 @@ function getTimeFromPosition(y, timelineHeight) {
   return TIMES[clampedIndex];
 }
 
-// ── NEW: Duration & time helpers ──────────────────────────────────────
-function getMinutesDuration(startTime, endTime) {
-  const startMins = timeToMinutes(startTime);
-  const endMins = timeToMinutes(endTime);
-  return Math.max(5, endMins - startMins);
-}
-
-function addMinutesToTime(timeStr, mins) {
-  let totalMins = timeToMinutes(timeStr) + mins;
-  // Handle day wraparound
-  if (totalMins < 0) totalMins += 24 * 60;
-  if (totalMins >= 24 * 60) totalMins -= 24 * 60;
-  return minutesToTime(totalMins);
-}
-
-function roundToFiveMinutes(timeStr) {
-  const mins = timeToMinutes(timeStr);
-  const rounded = Math.round(mins / 5) * 5;
-  return minutesToTime(rounded);
-}
-
 // ── Tag helpers ───────────────────────────────────────────────────────
 function resolveTag(tagId, tags) {
   return tags.find(t => t.id === tagId) || { label: tagId, color: C.textDim, bg: C.surface };
@@ -132,16 +111,16 @@ function bumpTagUse(tagId, tags) {
 }
 function makeDefaults() {
   return [
-    { id: genId(), tag: "work",        label: "morning check-in", time: "8:00am", endTime: "8:30am", note: "" },
-    { id: genId(), tag: "personal",    label: "slow start",       time: "8:30am", endTime: "9:00am", note: "" },
-    { id: genId(), tag: "work",        label: "deep work",        time: "10:00am", endTime: "11:00am", note: "" },
-    { id: genId(), tag: "personal",    label: "reset",            time: "12:00pm", endTime: "12:30pm", note: "" },
-    { id: genId(), tag: "surviving",   label: "admin catch-up",   time: "2:00pm", endTime: "2:30pm", note: "" },
+    { id: genId(), tag: "work",        label: "morning check-in", time: "8:00am",  note: "" },
+    { id: genId(), tag: "personal",    label: "slow start",       time: "8:30am",  note: "" },
+    { id: genId(), tag: "work",        label: "deep work",        time: "10:00am", note: "" },
+    { id: genId(), tag: "personal",    label: "reset",            time: "12:00pm", note: "" },
+    { id: genId(), tag: "surviving",   label: "admin catch-up",   time: "2:00pm",  note: "" },
   ];
 }
 
 // ── Pattern helpers ───────────────────────────────────────────────────
-const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","w"]);
+const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","went","felt","really","very","like","time","day","today","some","more","too","been","then","also","into"]);
 function topWords(text, n = 6) {
   const freq = {};
   text.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)).forEach(w => { freq[w] = (freq[w] || 0) + 1; });
@@ -217,9 +196,7 @@ function Sparkline({ data }) {
 }
 function TagPill({ tag, small, onClick }) {
   return (
-    <span onClick={onClick} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: small ? "2px 7px" : "3px 9px", borderRadius: 3, fontSize: small ? 10 : 11, background: tag.bg || C.surface, color: tag.color || C.text, border: `1px solid ${tag.color || C.border}`, cursor: "pointer" }}>
-      {tag.label}
-    </span>
+    <span onClick={onClick} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: small ? "2px 7px" : "3px 9px", borderRadius: 3, fontSize: small ? 10 : 11, background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}40`, color: tag.color || C.textDim, cursor: onClick ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>{tag.label}</span>
   );
 }
 function TagSelector({ tags, value, onChange, onCreateTag }) {
@@ -247,7 +224,7 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
         <span style={{ fontSize: 9, color: C.textDim }}>▾</span>
       </div>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, minWidth: 170, boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, minWidth: 170, boxShadow: "0 8px 24px #00000060", padding: "8px 0" }}>
           <input autoFocus placeholder="search or create..." value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") canCreate ? create() : filtered[0] && select(filtered[0]); if (e.key === "Escape") setOpen(false); }}
             style={{ width: "100%", background: C.surface, border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 12, padding: "7px 12px", outline: "none" }} />
@@ -303,7 +280,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer" }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ tasks</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
@@ -314,7 +291,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }}
-            style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1, cursor: "pointer" }} title="add task">+</span>
+            style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }} title="add task">+</span>
           <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
         </div>
       </div>
@@ -360,7 +337,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 6 }}>SCHEDULED</div>
               {scheduled.map(task => (
-                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 4, marginBottom: 3, background: C.card, border: `1px solid ${C.border}`, opacity: .7 }}>
+                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 4, marginBottom: 3, background: C.card, border: `1px solid ${C.border}`, opacity: .6 }}>
                   <span style={{ fontSize: 10, color: "#38bdf8", minWidth: 60 }}>{formatEventDate(task.scheduledFor)}</span>
                   <span style={{ flex: 1, fontSize: 12, color: C.textMid }}>{task.label}</span>
                   <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>✕</button>
@@ -571,53 +548,255 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// ── Magic Link Auth ───────────────────────────────────────────────────
-function AuthScreen({ onAuth }) {
+// ── Email/Password Auth ──────────────────────────────────────────────
+function AuthScreen() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState("signin"); // "signin", "signup", or "forgot"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  async function sendLink() {
-    if (!email.trim()) return;
-    setLoading(true); setError("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin }
-    });
+  async function handleAuth() {
+    setError("");
+    setSuccessMsg("");
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) {
+          setError(signUpError.message);
+        } else {
+          setSuccessMsg("Account created! Check your email to confirm.");
+          setTimeout(() => {
+            setMode("signin");
+            setPassword("");
+            setEmail("");
+          }, 2000);
+        }
+      } else if (mode === "signin") {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          setError(signInError.message);
+        }
+      } else if (mode === "forgot") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+        if (resetError) {
+          setError(resetError.message);
+        } else {
+          setSuccessMsg("Reset link sent to your email");
+          setEmail("");
+        }
+      }
+    } catch (e) {
+      setError(e.message);
+    }
     setLoading(false);
-    if (error) setError(error.message);
-    else setSent(true);
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');*{box-sizing:border-box;margin:0;padding:0}input{font-family:inherit}`}</style>
-      <div style={{ width: "100%", maxWidth: 380, padding: 32 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 42, letterSpacing: 4, color: C.accent, marginBottom: 4 }}>FLUX</div>
-        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 40 }}>DAILY SCHEDULE + JOURNAL</div>
-        {!sent ? (
-          <>
-            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 16, lineHeight: 1.6 }}>enter your email and we'll send you a link — no password needed</div>
-            <input autoFocus type="email" value={email} onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && sendLink()}
-              placeholder="your@email.com"
-              style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 14, outline: "none", marginBottom: 12 }} />
-            {error && <div style={{ fontSize: 11, color: C.accent, marginBottom: 10 }}>{error}</div>}
-            <button onClick={sendLink} disabled={loading}
-              style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: loading ? .6 : 1 }}>
-              {loading ? "sending..." : "send magic link →"}
-            </button>
-          </>
-        ) : (
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>📬</div>
-            <div style={{ fontSize: 14, color: C.text, marginBottom: 8 }}>check your email</div>
-            <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.7 }}>we sent a link to <span style={{ color: C.textMid }}>{email}</span><br />click it to get in — it expires in 1 hour</div>
-            <button onClick={() => setSent(false)} style={{ marginTop: 24, background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "8px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>use a different email</button>
-          </div>
-        )}
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace", position: "relative", overflow: "hidden" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        
+        .glow {
+          position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+          width: 800px; height: 600px;
+          background: radial-gradient(ellipse at center, ${C.accent}18 0%, transparent 70%);
+          pointer-events: none; z-index: 0;
+        }
+        
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .feature-card {
+          background: ${C.card}; border: 1px solid ${C.border};
+          padding: 28px 24px; position: relative; overflow: hidden; transition: border-color .2s;
+        }
+        .feature-card:hover { border-color: ${C.accent}30; }
+        .feature-card::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+          background: ${C.accent}; transform: scaleX(0); transform-origin: left; transition: transform .3s ease;
+        }
+        .feature-card:hover::before { transform: scaleX(1); }
+      `}</style>
+
+      <div className="glow" />
+
+      {/* Nav */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.border}40`, backdropFilter: "blur(12px)", background: C.bg + "90" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: C.accent }}>FLUX</div>
       </div>
+
+      {/* Hero Section */}
+      <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", padding: "120px 48px 80px", maxWidth: 960, margin: "0 auto" }}>
+        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>
+          A different kind of daily
+        </div>
+
+        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .95, letterSpacing: -2, color: C.text, marginBottom: 8, opacity: 0, animation: "fadeUp .7s ease .35s forwards" }}>
+          Built for brains<br />
+          <em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px, 9vw, 108px)", letterSpacing: 6, display: "block" }}>FLUX</span>
+        </h1>
+
+        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 24, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
+          A daily planner that bends instead of breaks. Structure without the rigidity. Flexible blocks, real data about how your days actually go, and a rhythm that works <em>with</em> you.
+        </p>
+
+        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
+          Built for clarity. Built to last.
+        </p>
+
+        {/* Auth Form */}
+        <div style={{ opacity: 0, animation: "fadeUp .7s ease .65s forwards", width: "100%", maxWidth: 360 }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 10 }}>
+              {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
+            </div>
+          </div>
+
+          {mode === "forgot" ? (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="email"
+                placeholder="your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1, marginBottom: 12 }}
+              />
+              <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
+                we'll send you a link to reset your password
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
+              />
+            </div>
+          )}
+
+          {error && (
+            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
+              {error}
+            </div>
+          )}
+
+          {successMsg && (
+            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+              {successMsg}
+            </div>
+          )}
+
+          <button
+            onClick={handleAuth}
+            disabled={loading || !email || (mode !== "forgot" && !password)}
+            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8, transition: "all .15s" }}
+          >
+            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+          </button>
+
+          {mode !== "forgot" && (
+            <button
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s", marginBottom: 8 }}
+            >
+              {mode === "signin" ? "Create Account" : "Back to Sign In"}
+            </button>
+          )}
+
+          {mode === "signin" && (
+            <button
+              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
+            >
+              Forgot password?
+            </button>
+          )}
+
+          {mode === "forgot" && (
+            <button
+              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
+              disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
+            >
+              Back to Sign In
+            </button>
+          )}
+
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+            your data is yours · private by design
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "0 48px" }}>
+        <hr style={{ border: "none", borderTop: `1px solid ${C.border}` }} />
+      </div>
+
+      {/* Features */}
+      <section style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
+          {[
+            { num: "01", title: "A schedule that moves with you", desc: "Drag blocks to reorder when things shift. Time is flexible, structure is the point." },
+            { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
+            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag—use it enough and it becomes a tracked category." },
+            { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
+            { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
+            { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
+          ].map(feature => (
+            <div key={feature.num} className="feature-card">
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{feature.num}</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{feature.title}</div>
+              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{feature.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Manifesto */}
+      <div style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "60px 48px", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${C.accent}08 0%, transparent 60%)`, pointerEvents: "none" }} />
+        <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48, alignItems: "center", position: "relative", zIndex: 1 }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 3, color: C.accent, lineHeight: .9, opacity: .15 }}>FLUX</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.5vw, 26px)", lineHeight: 1.5, color: C.textMid, fontStyle: "italic" }}>
+            This isn't productivity theater. It's about understanding <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> rhythm. By tracking what you actually do and how you feel, you build <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> operating system.
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: C.textDim }}>FLUX</div>
+        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>
+          built with care · <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -626,6 +805,11 @@ function AuthScreen({ onAuth }) {
 export default function App() {
   const [session, setSession]         = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [view, setView]               = useState("today");
   const [blocks, setBlocks]           = useState(makeDefaults());
   const [tasks, setTasks]             = useState([]);
@@ -645,6 +829,7 @@ export default function App() {
   const [flash, setFlash]             = useState(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
+  const timelineRef = useRef(null);
 
   // ── Auth ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -657,11 +842,55 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Check for recovery token in URL ──────────────────────────────────
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery")) {
+      setShowResetForm(true);
+    }
+  }, []);
+
+  // ── Handle password reset after email link ────────────────────────────
+  async function handlePasswordReset() {
+    setResetError("");
+    if (resetPassword.length < 6) {
+      setResetError("Password must be at least 6 characters");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: resetPassword });
+      if (error) {
+        setResetError(error.message);
+      } else {
+        setResetSuccess(true);
+        setTimeout(() => {
+          setShowResetForm(false);
+          setResetPassword("");
+          window.location.hash = "";
+          setResetSuccess(false);
+        }, 2000);
+      }
+    } catch (e) {
+      setResetError(e.message);
+    }
+    setResetLoading(false);
+  }
+
   // ── Load data from Supabase ──────────────────────────────────────────
   useEffect(() => {
     if (!session) return;
     loadData();
   }, [session]);
+
+  // ── Auto-save on changes ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+    const timer = setTimeout(() => {
+      saveToday(false); // show notification on auto-save
+    }, 1000); // wait 1 second after last change before saving
+    return () => clearTimeout(timer);
+  }, [blocks, tasks, mood, dayNote, wins, hard, tags]);
 
   async function loadData() {
     setDbLoading(true);
@@ -726,6 +955,15 @@ export default function App() {
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
 
+  async function deleteArchiveDay(dayKey) {
+    if (!session) return;
+    const uid = session.user.id;
+    await supabase.from("archive").delete().eq("user_id", uid).eq("day_key", dayKey);
+    const updatedArchive = { ...archive };
+    delete updatedArchive[dayKey];
+    setArchive(updatedArchive);
+  }
+
   async function saveEvents(newEvents) {
     setEvents(newEvents);
     if (!session) return;
@@ -744,13 +982,6 @@ export default function App() {
   }
 
   function handleDragStart(id) { dragItem.current = id; setDragging(id); }
-  function handleDragOver(e, id) { e.preventDefault(); setDragOver(id); }
-  function handleDrop(targetId) {
-    if (!dragItem.current || dragItem.current === targetId) { setDragging(null); setDragOver(null); return; }
-    const from = blocks.findIndex(b => b.id === dragItem.current), to = blocks.findIndex(b => b.id === targetId);
-    const next = [...blocks]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved);
-    setBlocks(next); setDragging(null); setDragOver(null); dragItem.current = null;
-  }
   function updateBlock(id, patch) { setBlocks(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
   function deleteBlock(id) { setBlocks(blocks.filter(b => b.id !== id)); }
   function addBlock() {
@@ -762,6 +993,77 @@ export default function App() {
   const archiveCount = Object.keys(archive).length;
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
+
+  if (showResetForm) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: 320 }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 3, color: C.accent, marginBottom: 8 }}>FLUX</div>
+            <div style={{ fontSize: 12, color: C.textDim }}>reset your password</div>
+          </div>
+
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="password"
+                placeholder="new password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handlePasswordReset()}
+                disabled={resetLoading}
+                style={{
+                  width: "100%",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  color: C.text,
+                  borderRadius: 4,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  opacity: resetLoading ? 0.6 : 1
+                }}
+              />
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>min 6 characters</div>
+            </div>
+
+            {resetError && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
+                {resetError}
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
+                Password updated! Redirecting...
+              </div>
+            )}
+
+            <button
+              onClick={handlePasswordReset}
+              disabled={resetLoading || !resetPassword}
+              style={{
+                width: "100%",
+                background: C.accent,
+                border: "none",
+                color: "#fff",
+                borderRadius: 4,
+                padding: "10px 16px",
+                fontSize: 12,
+                cursor: resetLoading || !resetPassword ? "default" : "pointer",
+                fontFamily: "inherit",
+                letterSpacing: 0.5,
+                opacity: resetLoading || !resetPassword ? 0.6 : 1,
+                transition: "all .15s"
+              }}
+            >
+              {resetLoading ? "updating..." : "Set New Password"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
   if (!session) return <AuthScreen />;
@@ -775,7 +1077,6 @@ export default function App() {
         textarea,input{font-family:inherit}
         .br:hover .ba{opacity:1!important}
         .task-row:hover .task-del{opacity:1!important}
-        .drag-over{border-top:2px solid ${C.accent}!important}
         .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
         .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
         .nav:not(.on){color:${C.textDim}}
@@ -788,21 +1089,59 @@ export default function App() {
         .addbtn{width:100%;background:none;border:1px dashed ${C.border};color:${C.textDim};border-radius:6px;padding:9px;font-size:12px;cursor:pointer;letter-spacing:1px;transition:all .15s;font-family:inherit}
         .addbtn:hover{border-color:${C.accent};color:${C.accent}}
         details summary::-webkit-details-marker{display:none}
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideDown {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(20px); }
+        }
+        .toast-enter { animation: slideUp .35s ease; }
+        .toast-exit { animation: slideDown .35s ease; }
       `}</style>
+
+      {/* Toast Notification */}
+      {flash && (
+        <div className="toast-enter" style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          background: flash === "archived" ? "#10b98120" : C.card,
+          border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`,
+          borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`,
+          borderRadius: 6,
+          padding: "14px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          zIndex: 1000,
+          fontFamily: "inherit",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+        }}>
+          <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "💾"}</span>
+          <span style={{ fontSize: 12, color: C.text, letterSpacing: 0.5 }}>
+            {flash === "archived" ? "Day archived" : "Changes saved"}
+          </span>
+        </div>
+      )}
 
       {/* Nav */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 3, color: C.accent }}>FLUX</div>
-            {flash && <span className="fl" style={{ fontSize: 11, color: flash === "archived" ? "#10b981" : C.textMid }}>{flash === "archived" ? "archived ✓" : "saved"}</span>}
             {dbLoading && <span style={{ fontSize: 11, color: C.textDim }}>syncing...</span>}
           </div>
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
             <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
-            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
+            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>     
+            <HelpSystem />
+            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" 
+               style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1, textDecoration: "none" }} 
+               title="Buy us a coffee ☕">☕</a>
             <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
           </div>
         </div>
@@ -815,7 +1154,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag to reorder · hover for options</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag blocks to change time · click empty space to add blocks</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
@@ -834,67 +1173,139 @@ export default function App() {
             </div>
           )}
 
-          {/* Blocks */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
-            {blocks.map(block => {
-              const tag = resolveTag(block.tag, tags);
-              return (
-                <div key={block.id} className={`br${dragOver === block.id ? " drag-over" : ""}`}
-                  draggable onDragStart={() => handleDragStart(block.id)}
-                  onDragOver={e => handleDragOver(e, block.id)} onDrop={() => handleDrop(block.id)}
-                  onDragEnd={() => { setDragging(null); setDragOver(null); }}
-                  style={{ background: dragging === block.id ? "#1e1e21" : C.card, border: `1px solid ${dragging === block.id ? tag.color : C.border}`, borderLeft: `3px solid ${tag.color || C.border}`, borderRadius: 6, padding: "10px 14px", cursor: "grab", opacity: dragging === block.id ? .5 : 1, transition: "border-color .15s" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ color: C.textDim, fontSize: 13, userSelect: "none" }}>⠿</span>
-                    <select value={block.time} onChange={e => updateBlock(block.id, { time: e.target.value })} onClick={e => e.stopPropagation()}
-                      style={{ background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}30`, color: tag.color || C.textDim, borderRadius: 3, fontSize: 11, padding: "2px 5px", cursor: "pointer", minWidth: 72, fontFamily: "inherit" }}>
-                      {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <span style={{ flex: 1, fontSize: 13, color: C.text }}>{block.label}</span>
-                    <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
-                      <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
-                    </div>
-                    <div className="ba" style={{ display: "flex", gap: 4, opacity: 0, transition: "opacity .15s" }}>
-                      <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 13, padding: "2px 4px" }} title="note">📝</button>
-                      <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }} title="remove">✕</button>
-                    </div>
+          {/* Timeline */}
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            <div style={{ display: "flex", height: TIMES.length * 20, border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}>
+              {/* Time labels */}
+              <div style={{ width: 60, background: C.surface, borderRight: `1px solid ${C.border}`, padding: "2px 0" }}>
+                {TIMES.map((time, i) => (
+                  <div key={time} style={{ height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.textDim }}>
+                    {time}
                   </div>
-                  {editingNote === block.id && (
-                    <textarea autoFocus placeholder="note this block..." value={block.note}
-                      onChange={e => updateBlock(block.id, { note: e.target.value })}
-                      onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
-                      style={{ width: "100%", marginTop: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none" }} />
-                  )}
-                  {block.note && editingNote !== block.id && (
-                    <div style={{ marginTop: 5, fontSize: 11, color: C.textMid, paddingLeft: 24, fontStyle: "italic" }}>{block.note}</div>
-                  )}
-                </div>
-              );
-            })}
+                ))}
+              </div>
+              {/* Timeline area */}
+              <div 
+                ref={timelineRef}
+                style={{ flex: 1, position: "relative", background: C.bg }}
+                onClick={(e) => {
+                  const rect = timelineRef.current.getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+                  const newTime = getTimeFromPosition(y, rect.height);
+                  setNewBlock({ ...newBlock, time: newTime });
+                  setAddingBlock(true);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!dragItem.current) return;
+                  const rect = timelineRef.current.getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+                  const newTime = getTimeFromPosition(y, rect.height);
+                  updateBlock(dragItem.current, { time: newTime });
+                  setDragging(null);
+                  dragItem.current = null;
+                }}
+              >
+                {/* Time slots */}
+                {TIMES.map((time, i) => (
+                  <div key={time} style={{ 
+                    position: "absolute", 
+                    top: (i * 20), 
+                    left: 0, 
+                    right: 0, 
+                    height: 20, 
+                    borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none",
+                    background: i % 2 === 0 ? "transparent" : `${C.surface}20`,
+                    pointerEvents: "none"
+                  }} />
+                ))}
+                {/* Blocks */}
+                {blocks.map(block => {
+                  const tag = resolveTag(block.tag, tags);
+                  const slotIndex = getTimeSlotIndex(block.time);
+                  return (
+                    <div 
+                      key={block.id}
+                      draggable
+                      onDragStart={(e) => {
+                        dragItem.current = block.id;
+                        setDragging(block.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragging(null);
+                        dragItem.current = null;
+                      }}
+                      className={`br${dragOver === block.id ? " drag-over" : ""}`}
+                      style={{ 
+                        position: "absolute",
+                        top: slotIndex * 20,
+                        left: 4,
+                        right: 4,
+                        height: 40,
+                        background: dragging === block.id ? "#1e1e21" : C.card, 
+                        border: `1px solid ${dragging === block.id ? tag.color : C.border}`, 
+                        borderLeft: `3px solid ${tag.color || C.border}`, 
+                        borderRadius: 4, 
+                        padding: "6px 8px", 
+                        cursor: "grab", 
+                        opacity: dragging === block.id ? .7 : 1, 
+                        transition: "all .15s",
+                        zIndex: dragging === block.id ? 10 : 1,
+                        boxShadow: dragging === block.id ? "0 4px 12px rgba(0,0,0,0.3)" : "none"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%" }}>
+                        <span style={{ color: C.textDim, fontSize: 11, userSelect: "none", flexShrink: 0 }}>⠿</span>
+                        <span style={{ color: C.textDim, fontSize: 11, minWidth: 46, textAlign: "center", fontFamily: "monospace" }}>
+                          {block.time}
+                        </span>
+                        <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.label}</span>
+                        <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
+                          <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
+                        </div>
+                        <div className="ba" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity .15s", flexShrink: 0 }}>
+                          <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 2px" }} title="note">📝</button>
+                          <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 2px" }} title="remove">✕</button>
+                        </div>
+                      </div>
+                      {editingNote === block.id && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4 }}>
+                          <textarea autoFocus placeholder="note this block..." value={block.note}
+                            onChange={e => updateBlock(block.id, { note: e.target.value })}
+                            onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
+                            style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }} />
+                        </div>
+                      )}
+                      {block.note && editingNote !== block.id && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 2, fontSize: 11, color: C.textMid, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+                          {block.note}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, textAlign: "center" }}>click empty space to add blocks · drag blocks to change time</div>
           </div>
 
           {addingBlock ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 22 }}>
-              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK</div>
+              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK AT {newBlock.time.toUpperCase()}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })}
                   onKeyDown={e => e.key === "Enter" && addBlock()}
                   style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 130 }} />
                 <div style={{ fontSize: 11, color: C.textDim }}>tag:</div>
                 <TagSelector tags={tags} value={newBlock.tag} onChange={tagId => setNewBlock({ ...newBlock, tag: tagId })} onCreateTag={persistTags} />
-                <select value={newBlock.time} onChange={e => setNewBlock({ ...newBlock, time: e.target.value })}
-                  style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, fontFamily: "inherit" }}>
-                  {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button onClick={addBlock} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
                 <button onClick={() => setAddingBlock(false)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
               </div>
             </div>
-          ) : (
-            <button className="addbtn" onClick={() => setAddingBlock(true)} style={{ marginBottom: 22 }}>+ add block</button>
-          )}
+          ) : null}
 
           {/* Drawers */}
           <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
@@ -949,7 +1360,31 @@ export default function App() {
                         {day.tasks?.length > 0 && <span style={{ marginLeft: 8 }}>{doneTasks.length}/{day.tasks.length} tasks done</span>}
                       </div>
                     </div>
-                    <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      if (window.confirm(`Are you sure you want to permanently delete the archived day "${day.date || key}"? This action cannot be undone.`)) {
+        deleteArchiveDay(key);
+      }
+    }}
+    style={{
+      background: "transparent",
+      color: "#ff4d4d",
+      border: "1px solid #ff4d4d",
+      padding: "2px 6px",
+      borderRadius: 4,
+      fontSize: 10,
+      cursor: "pointer"
+    }}
+  >
+    delete
+  </button>
+
+  <div style={{ color: C.textDim, fontSize: 11 }}>
+    {isOpen ? "▲" : "▼"}
+  </div>
+</div>
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
@@ -1075,4 +1510,3 @@ export default function App() {
     </div>
   );
 }
-
