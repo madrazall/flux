@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import HelpSystem from './HelpSystem.jsx';
 import { createClient } from "@supabase/supabase-js";
 
@@ -29,14 +29,13 @@ const SEED_TAGS = [
 ];
 
 const PROMOTE_THRESHOLD = 3;
-const TIMES = Array.from({ length: 34 }, (_, i) => {
-  const totalMins = 6 * 60 + i * 30;
-  const h = Math.floor(totalMins / 60) % 24;
-  const m = totalMins % 60;
-  const ampm = h < 12 ? "am" : "pm";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m === 0 ? "00" : "30"}${ampm}`;
-});
+const SNAP_MINUTES = 5;
+const DEFAULT_DURATION = 30;
+const PIXELS_PER_MINUTE = 1.2; // timeline density
+const DAY_START_HOUR = 6;
+const DAY_END_HOUR = 23;
+const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
+
 const MOODS = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -60,26 +59,91 @@ function formatEventDate(dateStr) {
 function isToday(dateStr) { return dateStr === todayKey(); }
 function isFuture(dateStr) { return dateStr >= todayKey(); }
 
-function getTimeSlotIndex(timeStr) {
-  const [time, ampm] = timeStr.split(/(am|pm)/);
-  let [hours, minutes] = time.split(':').map(Number);
-  if (ampm === 'pm' && hours !== 12) hours += 12;
-  if (ampm === 'am' && hours === 12) hours = 0;
-  const minutes_total = hours * 60 + minutes;
-  const [startTime, startAmpm] = TIMES[0].split(/(am|pm)/);
-  let [startH] = startTime.split(':').map(Number);
-  if (startAmpm === 'pm' && startH !== 12) startH += 12;
-  const startMinutes = startH * 60;
-  return Math.round((minutes_total - startMinutes) / 30);
+// ── Time math ─────────────────────────────────────────────────────────
+function timeToMinutes(timeStr) {
+  if (!timeStr) return DAY_START_HOUR * 60;
+  const match = timeStr.match(/(\d+):(\d+)(am|pm)/i);
+  if (!match) return DAY_START_HOUR * 60;
+  let h = parseInt(match[1]);
+  const m = parseInt(match[2]);
+  const ampm = match[3].toLowerCase();
+  if (ampm === 'pm' && h !== 12) h += 12;
+  if (ampm === 'am' && h === 12) h = 0;
+  return h * 60 + m;
 }
 
-function getTimeFromPosition(y, timelineHeight) {
-  const slotHeight = timelineHeight / TIMES.length;
-  const slotIndex = Math.floor(y / slotHeight);
-  const clampedIndex = Math.max(0, Math.min(TIMES.length - 1, slotIndex));
-  return TIMES[clampedIndex];
+function minutesToTimeStr(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  const ampm = h < 12 ? "am" : "pm";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m.toString().padStart(2, "0")}${ampm}`;
 }
 
+function snapToGrid(minutes) {
+  return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+}
+
+function minutesToPx(minutes) {
+  return minutes * PIXELS_PER_MINUTE;
+}
+
+function pxToMinutes(px) {
+  return px / PIXELS_PER_MINUTE;
+}
+
+function offsetToMinutes(offsetPx) {
+  return snapToGrid(DAY_START_HOUR * 60 + pxToMinutes(offsetPx));
+}
+
+// ── Column layout for overlapping blocks ──────────────────────────────
+function computeColumns(blocks) {
+  const sorted = [...blocks].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const columns = [];
+  const blockCols = {};
+
+  for (const block of sorted) {
+    const start = timeToMinutes(block.time);
+    const end = start + (block.duration || DEFAULT_DURATION);
+    let placed = false;
+    for (let col = 0; col < columns.length; col++) {
+      const lastEnd = columns[col];
+      if (start >= lastEnd) {
+        columns[col] = end;
+        blockCols[block.id] = col;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      blockCols[block.id] = columns.length;
+      columns.push(end);
+    }
+  }
+
+  // figure out how many columns each block spans
+  const blockWidths = {};
+  for (const block of sorted) {
+    const start = timeToMinutes(block.time);
+    const end = start + (block.duration || DEFAULT_DURATION);
+    const col = blockCols[block.id];
+    let maxCol = col;
+    // check what other blocks overlap with this one
+    for (const other of sorted) {
+      if (other.id === block.id) continue;
+      const oStart = timeToMinutes(other.time);
+      const oEnd = oStart + (other.duration || DEFAULT_DURATION);
+      if (oStart < end && oEnd > start) {
+        maxCol = Math.max(maxCol, blockCols[other.id]);
+      }
+    }
+    blockWidths[block.id] = { col, totalCols: maxCol + 1 };
+  }
+
+  return blockWidths;
+}
+
+// ── Tag helpers ───────────────────────────────────────────────────────
 function resolveTag(tagId, tags) {
   return tags.find(t => t.id === tagId) || { label: tagId, color: C.textDim, bg: C.surface };
 }
@@ -97,14 +161,15 @@ function bumpTagUse(tagId, tags) {
 }
 function makeDefaults() {
   return [
-    { id: genId(), tag: "work",        label: "morning check-in", time: "8:00am",  note: "" },
-    { id: genId(), tag: "personal",    label: "slow start",       time: "8:30am",  note: "" },
-    { id: genId(), tag: "work",        label: "deep work",        time: "10:00am", note: "" },
-    { id: genId(), tag: "personal",    label: "reset",            time: "12:00pm", note: "" },
-    { id: genId(), tag: "surviving",   label: "admin catch-up",   time: "2:00pm",  note: "" },
+    { id: genId(), tag: "work",        label: "morning check-in", time: "8:00am",  duration: 30,  note: "" },
+    { id: genId(), tag: "personal",    label: "slow start",       time: "8:30am",  duration: 60,  note: "" },
+    { id: genId(), tag: "work",        label: "deep work",        time: "10:00am", duration: 90,  note: "" },
+    { id: genId(), tag: "personal",    label: "reset",            time: "12:00pm", duration: 30,  note: "" },
+    { id: genId(), tag: "surviving",   label: "admin catch-up",   time: "2:00pm",  duration: 60,  note: "" },
   ];
 }
 
+// ── Pattern helpers ───────────────────────────────────────────────────
 const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","went","felt","really","very","like","time","day","today","some","more","too","been","then","also","into"]);
 function topWords(text, n = 6) {
   const freq = {};
@@ -183,6 +248,7 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
 .schedule { margin-bottom: 13px; }
 .block-row { display: flex; align-items: flex-start; gap: 7px; padding: 3px 0; border-bottom: 1px solid #f8f8f8; }
 .b-time { font-size: 8.5px; color: #e8365d; min-width: 42px; font-family: 'DM Mono', monospace; padding-top: 2px; flex-shrink: 0; }
+.b-dur { font-size: 8px; color: #bbb; font-family: 'DM Mono', monospace; min-width: 32px; }
 .b-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
 .b-label { font-size: 11px; color: #1a1a1a; line-height: 1.3; }
 .b-tag { font-size: 8px; color: #bbb; font-family: 'DM Mono', monospace; }
@@ -203,39 +269,32 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
 .f-id { font-size: 8px; color: #ccc; font-family: 'DM Mono', monospace; }
 .f-note { font-size: 8px; color: #ccc; font-family: 'DM Mono', monospace; }
 .corner-geo { position: absolute; bottom: 0; right: 0; width: 90px; height: 90px; }
-@media print {
-  html, body { width: 5.5in; height: 8.5in; }
-  @page { size: 5.5in 8.5in; margin: 0; }
-}
+@media print { html, body { width: 5.5in; height: 8.5in; } @page { size: 5.5in 8.5in; margin: 0; } }
 </style>
 </head>
 <body>
 <div class="content">
   <div class="page-header">
-    <div>
-      <div class="flux-word">FLUX</div>
-      <div class="sub">daily log</div>
-    </div>
+    <div><div class="flux-word">FLUX</div><div class="sub">daily log</div></div>
     <div>
       <div class="dow">${new Date((day.key || todayKey()) + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })}</div>
       <div class="date-str">${day.date || day.key}</div>
     </div>
   </div>
-
   <div class="energy-row">
     <div class="energy-lbl">Energy</div>
-    <div class="dots">
-      ${[0,1,2,3,4].map(i => `<div class="dot${i <= (day.mood ?? 2) ? " on" : ""}"></div>`).join("")}
-    </div>
+    <div class="dots">${[0,1,2,3,4].map(i => `<div class="dot${i <= (day.mood ?? 2) ? " on" : ""}"></div>`).join("")}</div>
     <div class="energy-val">${MOODS_PRINT[day.mood ?? 2]}</div>
   </div>
-
   <div class="schedule">
     <div class="sec-label">Schedule</div>
-    ${(day.blocks || []).map(b => {
+    ${(day.blocks || []).sort((a,b) => timeToMinutes(a.time) - timeToMinutes(b.time)).map(b => {
       const t = resolveT(b.tag);
+      const dur = b.duration || DEFAULT_DURATION;
+      const durStr = dur >= 60 ? `${Math.floor(dur/60)}h${dur%60 ? dur%60+"m" : ""}` : `${dur}m`;
       return `<div class="block-row">
         <div class="b-time">${b.time}</div>
+        <div class="b-dur">${durStr}</div>
         <div class="b-dot" style="background:${t.color}"></div>
         <div>
           <div class="b-label">${b.label}</div>
@@ -245,48 +304,17 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
       </div>`;
     }).join("")}
   </div>
-
   ${(day.tasks || []).length > 0 ? `
   <div class="tasks">
     <div class="sec-label">Tasks</div>
-    ${doneTasks.map(t => `
-      <div class="task-row">
-        <div class="cb done">✓</div>
-        <div class="t-label crossed">${t.label}</div>
-        <div class="t-done-time">${t.doneAt || ""}</div>
-      </div>`).join("")}
+    ${doneTasks.map(t => `<div class="task-row"><div class="cb done">✓</div><div class="t-label crossed">${t.label}</div><div class="t-done-time">${t.doneAt || ""}</div></div>`).join("")}
     ${pendingTasks.map(t => {
       const rolledCount = (t.addedAt || "").split("(rolled)").length - 1;
-      const showAsterisk = rolledCount >= ROLLOVER_THRESHOLD;
-      return `<div class="task-row">
-        <div class="cb"></div>
-        <div class="t-label">${t.label}${showAsterisk ? '<span class="rolled">*</span>' : ""}</div>
-      </div>`;
+      return `<div class="task-row"><div class="cb"></div><div class="t-label">${t.label}${rolledCount >= ROLLOVER_THRESHOLD ? '<span class="rolled">*</span>' : ""}</div></div>`;
     }).join("")}
   </div>` : ""}
-
-  ${day.wins ? `
-  <div class="journal">
-    <div class="sec-label">Wins</div>
-    <div class="j-content">${day.wins}</div>
-    <div class="wline"></div><div class="wline"></div>
-  </div>` : `
-  <div class="journal">
-    <div class="sec-label">Wins</div>
-    <div class="wline"></div><div class="wline"></div><div class="wline"></div>
-  </div>`}
-
-  ${day.hard ? `
-  <div class="journal">
-    <div class="sec-label">Hard stuff</div>
-    <div class="j-content">${day.hard}</div>
-    <div class="wline"></div><div class="wline"></div>
-  </div>` : `
-  <div class="journal">
-    <div class="sec-label">Hard stuff</div>
-    <div class="wline"></div><div class="wline"></div><div class="wline"></div>
-  </div>`}
-
+  ${day.wins ? `<div class="journal"><div class="sec-label">Wins</div><div class="j-content">${day.wins}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Wins</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
+  ${day.hard ? `<div class="journal"><div class="sec-label">Hard stuff</div><div class="j-content">${day.hard}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Hard stuff</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
   <div class="page-footer">
     <div class="f-flux">FLUX</div>
     <div class="f-note">* rolled 3+ days</div>
@@ -306,7 +334,6 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
 <script>window.onload = () => window.print();</script>
 </body>
 </html>`;
-
   const w = window.open("", "_blank");
   w.document.write(html);
   w.document.close();
@@ -327,7 +354,6 @@ function MiniBar({ label, value, max, color, sub }) {
     </div>
   );
 }
-
 function Sparkline({ data }) {
   if (!data || data.length < 2) return null;
   const W = 280, H = 44, P = 4;
@@ -345,13 +371,11 @@ function Sparkline({ data }) {
     </svg>
   );
 }
-
 function TagPill({ tag, small, onClick }) {
   return (
     <span onClick={onClick} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: small ? "2px 7px" : "3px 9px", borderRadius: 3, fontSize: small ? 10 : 11, background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}40`, color: tag.color || C.textDim, cursor: onClick ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>{tag.label}</span>
   );
 }
-
 function TagSelector({ tags, value, onChange, onCreateTag }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -407,40 +431,336 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
   );
 }
 
+// ── Visual Timeline ───────────────────────────────────────────────────
+function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
+  const timelineRef = useRef(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [resizingId, setResizingId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const [addingAt, setAddingAt] = useState(null); // minutes offset where user clicked
+  const [newLabel, setNewLabel] = useState("");
+  const [newTag, setNewTag] = useState("work");
+  const dragStartY = useRef(0);
+  const dragStartMinutes = useRef(0);
+  const resizeStartY = useRef(0);
+  const resizeStartDuration = useRef(0);
+
+  const timelineHeight = minutesToPx(TOTAL_MINUTES);
+  const colLayout = computeColumns(blocks);
+
+  // hour markers
+  const hourMarkers = [];
+  for (let h = DAY_START_HOUR; h <= DAY_END_HOUR; h++) {
+    const mins = (h - DAY_START_HOUR) * 60;
+    hourMarkers.push({ mins, label: minutesToTimeStr(h * 60) });
+  }
+
+  function getRelativeY(e) {
+    const rect = timelineRef.current.getBoundingClientRect();
+    return (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
+  }
+
+  // ── Drag block to move ──
+  function onBlockMouseDown(e, blockId) {
+    if (e.target.dataset.resize || e.target.dataset.edit) return;
+    e.preventDefault();
+    const block = blocks.find(b => b.id === blockId);
+    dragStartY.current = e.clientY;
+    dragStartMinutes.current = timeToMinutes(block.time);
+    setDraggingId(blockId);
+
+    function onMove(ev) {
+      const dy = ev.clientY - dragStartY.current;
+      const deltaMinutes = pxToMinutes(dy);
+      let newStart = snapToGrid(dragStartMinutes.current + deltaMinutes);
+      newStart = Math.max(DAY_START_HOUR * 60, Math.min((DAY_END_HOUR * 60) - (block.duration || DEFAULT_DURATION), newStart));
+      onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, time: minutesToTimeStr(newStart) } : b));
+    }
+    function onUp() {
+      setDraggingId(null);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  // ── Drag bottom edge to resize ──
+  function onResizeMouseDown(e, blockId) {
+    e.preventDefault();
+    e.stopPropagation();
+    const block = blocks.find(b => b.id === blockId);
+    resizeStartY.current = e.clientY;
+    resizeStartDuration.current = block.duration || DEFAULT_DURATION;
+    setResizingId(blockId);
+
+    function onMove(ev) {
+      const dy = ev.clientY - resizeStartY.current;
+      const deltaMins = pxToMinutes(dy);
+      const newDur = Math.max(SNAP_MINUTES, snapToGrid(resizeStartDuration.current + deltaMins));
+      onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, duration: newDur } : b));
+    }
+    function onUp() {
+      setResizingId(null);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  // ── Click empty space to add ──
+  function onTimelineClick(e) {
+    if (draggingId || resizingId) return;
+    if (e.target !== timelineRef.current && !e.target.classList.contains("tl-bg")) return;
+    const y = getRelativeY(e);
+    const mins = snapToGrid(DAY_START_HOUR * 60 + pxToMinutes(y));
+    setAddingAt(mins);
+    setNewLabel("");
+    setNewTag("work");
+  }
+
+  function addBlock() {
+    if (!newLabel.trim()) return;
+    const newBlock = {
+      id: genId(), tag: newTag, label: newLabel.trim(),
+      time: minutesToTimeStr(addingAt), duration: DEFAULT_DURATION, note: ""
+    };
+    onBlocksChange([...blocks, newBlock]);
+    setAddingAt(null); setNewLabel("");
+  }
+
+  // ── Edit ──
+  function startEdit(block) {
+    setEditingId(block.id);
+    setEditValues({ label: block.label, tag: block.tag, duration: block.duration || DEFAULT_DURATION, note: block.note || "" });
+  }
+  function saveEdit(blockId) {
+    onBlocksChange(blocks.map(b => b.id === blockId ? { ...b, ...editValues } : b));
+    setEditingId(null);
+  }
+
+  function formatDuration(mins) {
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", fontSize: 11, color: C.textDim, marginBottom: 8, gap: 16 }}>
+        <span>click empty space to add a block</span>
+        <span>drag to move · drag bottom edge to resize</span>
+      </div>
+
+      <div style={{ display: "flex", gap: 0 }}>
+        {/* Hour labels column */}
+        <div style={{ width: 52, flexShrink: 0, position: "relative", height: timelineHeight }}>
+          {hourMarkers.map(({ mins, label }) => (
+            <div key={mins} style={{ position: "absolute", top: minutesToPx(mins), right: 8, fontSize: 9, color: C.textDim, lineHeight: 1, transform: "translateY(-50%)", whiteSpace: "nowrap" }}>
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {/* Timeline body */}
+        <div style={{ flex: 1, position: "relative", borderLeft: `1px solid ${C.border}` }}>
+          {/* Background grid */}
+          <div
+            ref={timelineRef}
+            className="tl-bg"
+            onClick={onTimelineClick}
+            style={{ position: "absolute", inset: 0, height: timelineHeight, cursor: "crosshair" }}
+          >
+            {hourMarkers.map(({ mins }) => (
+              <div key={mins} style={{ position: "absolute", top: minutesToPx(mins), left: 0, right: 0, borderTop: `1px solid ${C.border}30`, pointerEvents: "none" }} />
+            ))}
+            {/* Half-hour lines */}
+            {hourMarkers.slice(0, -1).map(({ mins }) => (
+              <div key={`h${mins}`} style={{ position: "absolute", top: minutesToPx(mins + 30), left: 0, right: 0, borderTop: `1px dashed ${C.border}20`, pointerEvents: "none" }} />
+            ))}
+          </div>
+
+          {/* Blocks */}
+          <div style={{ position: "relative", height: timelineHeight, pointerEvents: "none" }}>
+            {blocks.map(block => {
+              const tag = resolveTag(block.tag, tags);
+              const startMins = timeToMinutes(block.time);
+              const duration = block.duration || DEFAULT_DURATION;
+              const top = minutesToPx(startMins - DAY_START_HOUR * 60);
+              const height = Math.max(minutesToPx(duration), 24);
+              const layout = colLayout[block.id] || { col: 0, totalCols: 1 };
+              const colWidth = 100 / layout.totalCols;
+              const left = `${layout.col * colWidth}%`;
+              const width = `${colWidth - 1}%`;
+              const isDragging = draggingId === block.id;
+              const isResizing = resizingId === block.id;
+              const isEditing = editingId === block.id;
+
+              return (
+                <div key={block.id} style={{ pointerEvents: "auto" }}>
+                  <div
+                    onMouseDown={e => onBlockMouseDown(e, block.id)}
+                    style={{
+                      position: "absolute", top, left, width, height,
+                      background: isDragging || isResizing ? tag.bg : C.card,
+                      border: `1px solid ${isDragging || isResizing ? tag.color : C.border}`,
+                      borderLeft: `3px solid ${tag.color}`,
+                      borderRadius: 4,
+                      cursor: isDragging ? "grabbing" : "grab",
+                      opacity: isDragging ? 0.85 : 1,
+                      zIndex: isDragging || isResizing ? 20 : 1,
+                      boxShadow: isDragging ? `0 4px 16px ${tag.color}40` : "none",
+                      transition: isDragging || isResizing ? "none" : "box-shadow .15s",
+                      overflow: "visible",
+                      userSelect: "none",
+                    }}
+                  >
+                    {/* Block content */}
+                    <div style={{ padding: "4px 6px 4px 7px", height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 4, flex: 1, overflow: "hidden" }}>
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div style={{ fontSize: 11, color: C.text, fontWeight: 500, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: height < 40 ? "nowrap" : "normal" }}>{block.label}</div>
+                          {height > 36 && <div style={{ fontSize: 9, color: tag.color, opacity: .8, marginTop: 1 }}>{tag.label} · {formatDuration(duration)}</div>}
+                          {block.note && height > 52 && <div style={{ fontSize: 9, color: C.textDim, fontStyle: "italic", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.note}</div>}
+                        </div>
+                        {/* Edit button */}
+                        <button
+                          data-edit="true"
+                          onClick={e => { e.stopPropagation(); startEdit(block); }}
+                          style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 3, cursor: "pointer", color: C.textDim, fontSize: 9, padding: "1px 4px", flexShrink: 0, lineHeight: 1.4, pointerEvents: "auto" }}
+                          title="edit"
+                        >✎</button>
+                        {/* Delete button */}
+                        <button
+                          data-edit="true"
+                          onClick={e => { e.stopPropagation(); onBlocksChange(blocks.filter(b => b.id !== block.id)); }}
+                          style={{ background: "none", border: "none", borderRadius: 3, cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 3px", flexShrink: 0, lineHeight: 1.4, pointerEvents: "auto" }}
+                          title="remove"
+                        >✕</button>
+                      </div>
+                      {/* Time label at bottom if tall enough */}
+                      {height > 48 && (
+                        <div style={{ fontSize: 8, color: C.textDim, fontFamily: "monospace", marginTop: "auto" }}>
+                          {block.time} – {minutesToTimeStr(startMins + duration)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resize handle */}
+                    <div
+                      data-resize="true"
+                      onMouseDown={e => onResizeMouseDown(e, block.id)}
+                      style={{
+                        position: "absolute", bottom: 0, left: 0, right: 0, height: 8,
+                        cursor: "ns-resize", display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "transparent", borderRadius: "0 0 4px 4px",
+                        pointerEvents: "auto",
+                      }}
+                    >
+                      <div style={{ width: 24, height: 2, background: tag.color, opacity: .4, borderRadius: 1 }} />
+                    </div>
+                  </div>
+
+                  {/* Edit panel */}
+                  {isEditing && (
+                    <div style={{
+                      position: "absolute", top, left: "calc(100% + 8px)",
+                      width: 240, zIndex: 100,
+                      background: C.card, border: `1px solid ${C.accent}40`,
+                      borderRadius: 6, padding: 12,
+                      boxShadow: "0 8px 24px #00000080",
+                      pointerEvents: "auto",
+                    }}>
+                      <div style={{ fontSize: 9, color: C.accent, letterSpacing: 1, marginBottom: 10 }}>EDIT BLOCK</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <input autoFocus value={editValues.label} onChange={e => setEditValues({ ...editValues, label: e.target.value })}
+                          onKeyDown={e => e.key === "Enter" && saveEdit(block.id)}
+                          placeholder="label..." style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "6px 8px", fontSize: 12, outline: "none", width: "100%" }} />
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 10, color: C.textDim }}>tag:</span>
+                          <TagSelector tags={tags} value={editValues.tag} onChange={v => setEditValues({ ...editValues, tag: v })} onCreateTag={onPersistTags} />
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 10, color: C.textDim }}>duration:</span>
+                          <input type="number" value={editValues.duration} min={SNAP_MINUTES} step={SNAP_MINUTES}
+                            onChange={e => setEditValues({ ...editValues, duration: Math.max(SNAP_MINUTES, parseInt(e.target.value) || DEFAULT_DURATION) })}
+                            style={{ width: 64, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "5px 7px", fontSize: 12, outline: "none" }} />
+                          <span style={{ fontSize: 10, color: C.textDim }}>min</span>
+                        </div>
+                        <textarea value={editValues.note} onChange={e => setEditValues({ ...editValues, note: e.target.value })}
+                          placeholder="note (optional)..." rows={2}
+                          style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "6px 8px", fontSize: 11, outline: "none", resize: "none", lineHeight: 1.5 }} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => saveEdit(block.id)} style={{ flex: 1, background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
+                          <button onClick={() => setEditingId(null)} style={{ flex: 1, background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add block form */}
+          {addingAt !== null && (
+            <div style={{
+              position: "absolute",
+              top: minutesToPx(addingAt - DAY_START_HOUR * 60),
+              left: 8, right: 8, zIndex: 50,
+              background: C.card, border: `1px solid ${C.accent}50`,
+              borderRadius: 6, padding: 12,
+              boxShadow: "0 8px 24px #00000080",
+            }}>
+              <div style={{ fontSize: 9, color: C.accent, letterSpacing: 1, marginBottom: 8 }}>NEW BLOCK AT {minutesToTimeStr(addingAt)}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input autoFocus value={newLabel} onChange={e => setNewLabel(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") addBlock(); if (e.key === "Escape") setAddingAt(null); }}
+                  placeholder="what is it..."
+                  style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 120 }} />
+                <TagSelector tags={tags} value={newTag} onChange={setNewTag} onCreateTag={onPersistTags} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button onClick={addBlock} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+                <button onClick={() => setAddingAt(null)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Timeline height spacer */}
+      <div style={{ height: timelineHeight + 8 }} />
+    </div>
+  );
+}
+
 // ── Early Access Banner ───────────────────────────────────────────────
 function EarlyAccessBanner() {
   const [visible, setVisible] = useState(true);
   const [dismissed, setDismissed] = useState(false);
-
   useEffect(() => {
-    const seen = localStorage.getItem("flux_banner_dismissed");
-    if (seen) { setVisible(false); setDismissed(true); }
+    if (localStorage.getItem("flux_banner_dismissed")) { setVisible(false); setDismissed(true); }
   }, []);
-
   function dismiss() {
     setVisible(false);
     localStorage.setItem("flux_banner_dismissed", "true");
     setTimeout(() => setDismissed(true), 400);
   }
-
   if (dismissed) return null;
-
   return (
-    <div style={{
-      position: "fixed", bottom: 24, left: 24, zIndex: 999,
-      maxWidth: 300, opacity: visible ? 1 : 0,
-      transform: visible ? "translateY(0)" : "translateY(12px)",
-      transition: "opacity .35s ease, transform .35s ease",
-      pointerEvents: visible ? "auto" : "none",
-    }}>
+    <div style={{ position: "fixed", bottom: 24, left: 24, zIndex: 999, maxWidth: 300, opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(12px)", transition: "opacity .35s ease, transform .35s ease", pointerEvents: visible ? "auto" : "none" }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 6, padding: "12px 14px", boxShadow: "0 4px 20px #00000050" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
             <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>🚧 EARLY ACCESS</div>
             <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>Flux is still being built. Things may shift, break, or get better without warning.</div>
-            <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none", letterSpacing: .5 }}>fluxteam@proton.me</a>
+            <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none" }}>fluxteam@proton.me</a>
           </div>
-          <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>✕</button>
+          <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0 }}>✕</button>
         </div>
       </div>
     </div>
@@ -450,11 +770,9 @@ function EarlyAccessBanner() {
 // ── Late Night Prompt ─────────────────────────────────────────────────
 function LateNightPrompt({ onChoose }) {
   const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
   const todayLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
   const yesterdayLabel = yesterday.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
-
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#000000bb", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxWidth: 380, width: "100%", padding: "32px 28px", boxShadow: "0 24px 80px #00000080" }}>
@@ -487,18 +805,13 @@ function TaskDrawer({ tasks, onTasksChange }) {
   const pending = tasks.filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
   const scheduled = tasks.filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey()).sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
   const done = tasks.filter(t => t.done);
-
   function addTask() {
-    const label = input.trim();
-    if (!label) return;
+    const label = input.trim(); if (!label) return;
     onTasksChange([...tasks, { id: genId(), label, done: false, addedAt: nowStamp(), scheduledFor: schedDate || null }]);
     setInput(""); setSchedDate(""); inputRef.current?.focus();
   }
-  function toggleTask(id) {
-    onTasksChange(tasks.map(t => t.id !== id ? t : { ...t, done: !t.done, doneAt: !t.done ? nowStamp() : undefined }));
-  }
+  function toggleTask(id) { onTasksChange(tasks.map(t => t.id !== id ? t : { ...t, done: !t.done, doneAt: !t.done ? nowStamp() : undefined })); }
   function deleteTask(id) { onTasksChange(tasks.filter(t => t.id !== id)); }
-
   return (
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
@@ -511,7 +824,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }} style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }} title="add task">+</span>
+          <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }} style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }}>+</span>
           <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
         </div>
       </div>
@@ -520,7 +833,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add a task, hit enter..."
               style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 160 }} />
-            <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} title="schedule for a future date"
+            <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)}
               style={{ background: C.card, border: `1px solid ${C.border}`, color: schedDate ? C.text : C.textDim, borderRadius: 4, padding: "7px 8px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
             <button onClick={addTask} style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>add</button>
           </div>
@@ -529,7 +842,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {pending.map(task => (
               <div key={task.id} className="task-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 4, background: C.card, border: `1px solid ${C.border}` }}>
-                <div onClick={() => toggleTask(task.id)} style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${C.border}`, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+                <div onClick={() => toggleTask(task.id)} style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${C.border}`, cursor: "pointer", flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = "#10b981"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border} />
                 <span style={{ flex: 1, fontSize: 13, color: C.text }}>{task.label}</span>
                 {task.addedAt && <span style={{ fontSize: 10, color: C.textDim }}>{task.addedAt}</span>}
@@ -577,11 +890,7 @@ function UpcomingDrawer({ events }) {
   const todayEvents = upcoming.filter(e => isToday(e.date));
   const futureEvents = upcoming.filter(e => !isToday(e.date)).slice(0, 5);
   const next = upcoming.find(e => !isToday(e.date));
-  const thisWeek = upcoming.filter(e => {
-    const diff = Math.round((new Date(e.date + "T00:00:00") - new Date()) / 86400000);
-    return diff > 0 && diff <= 7;
-  }).length;
-
+  const thisWeek = upcoming.filter(e => { const diff = Math.round((new Date(e.date + "T00:00:00") - new Date()) / 86400000); return diff > 0 && diff <= 7; }).length;
   return (
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
@@ -589,7 +898,7 @@ function UpcomingDrawer({ events }) {
           <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ upcoming</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
             {todayEvents.length > 0 && <span style={{ color: C.accent }}>{todayEvents.length} today</span>}
-            {todayEvents.length > 0 && thisWeek > 0 && <span style={{ color: C.textDim }}> · </span>}
+            {todayEvents.length > 0 && thisWeek > 0 && <span> · </span>}
             {thisWeek > 0 && <span>{thisWeek} this week</span>}
             {todayEvents.length === 0 && thisWeek === 0 && next && <span>next: <span style={{ color: C.text }}>{next.title}</span> {formatEventDate(next.date)}{next.time ? ` ${next.time}` : ""}</span>}
             {upcoming.length === 0 && <span style={{ color: C.textDim }}>nothing scheduled</span>}
@@ -599,30 +908,22 @@ function UpcomingDrawer({ events }) {
       </div>
       {open && (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", padding: "12px 14px" }}>
-          {todayEvents.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: C.accent, letterSpacing: 1, marginBottom: 7 }}>TODAY</div>
-              {todayEvents.map(e => (
-                <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "6px 8px", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 4, marginBottom: 4 }}>
-                  {e.time && <span style={{ fontSize: 11, color: C.accent, minWidth: 50 }}>{e.time}</span>}
-                  <span style={{ fontSize: 13, color: C.text }}>{e.title}</span>
-                  {e.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {e.note}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-          {futureEvents.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>COMING UP</div>
-              {futureEvents.map(e => (
-                <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "5px 8px", marginBottom: 3 }}>
-                  <span style={{ fontSize: 11, color: "#38bdf8", minWidth: 70 }}>{formatEventDate(e.date)}{e.time ? ` ${e.time}` : ""}</span>
-                  <span style={{ fontSize: 12, color: C.text }}>{e.title}</span>
-                  {e.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {e.note}</span>}
-                </div>
-              ))}
-            </div>
-          )}
+          {todayEvents.length > 0 && <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: C.accent, letterSpacing: 1, marginBottom: 7 }}>TODAY</div>
+            {todayEvents.map(e => <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "6px 8px", background: C.accentDim, border: `1px solid ${C.accent}30`, borderRadius: 4, marginBottom: 4 }}>
+              {e.time && <span style={{ fontSize: 11, color: C.accent, minWidth: 50 }}>{e.time}</span>}
+              <span style={{ fontSize: 13, color: C.text }}>{e.title}</span>
+              {e.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {e.note}</span>}
+            </div>)}
+          </div>}
+          {futureEvents.length > 0 && <div>
+            <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>COMING UP</div>
+            {futureEvents.map(e => <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "5px 8px", marginBottom: 3 }}>
+              <span style={{ fontSize: 11, color: "#38bdf8", minWidth: 70 }}>{formatEventDate(e.date)}{e.time ? ` ${e.time}` : ""}</span>
+              <span style={{ fontSize: 12, color: C.text }}>{e.title}</span>
+              {e.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {e.note}</span>}
+            </div>)}
+          </div>}
           {upcoming.length === 0 && <div style={{ fontSize: 12, color: C.textDim, textAlign: "center", padding: "8px 0" }}>nothing scheduled — add events in the Calendar tab</div>}
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim }}>manage events in the Calendar tab</div>
         </div>
@@ -638,22 +939,16 @@ function CalendarView({ events, onEventsChange }) {
   const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
   const past = sorted.filter(e => e.date < todayKey());
   const present = sorted.filter(e => isFuture(e.date));
-
   function addEvent() {
     if (!newEvent.title.trim() || !newEvent.date) return;
     onEventsChange([...events, { ...newEvent, id: genId() }]);
-    setNewEvent({ title: "", date: "", time: "", note: "" });
-    setAdding(false);
+    setNewEvent({ title: "", date: "", time: "", note: "" }); setAdding(false);
   }
   function deleteEvent(id) { onEventsChange(events.filter(e => e.id !== id)); }
-
   const grouped = present.reduce((acc, e) => {
     const month = new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    if (!acc[month]) acc[month] = [];
-    acc[month].push(e);
-    return acc;
+    if (!acc[month]) acc[month] = []; acc[month].push(e); return acc;
   }, {});
-
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -665,65 +960,53 @@ function CalendarView({ events, onEventsChange }) {
           {adding ? "cancel" : "+ add event"}
         </button>
       </div>
-      {adding && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
-          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW EVENT</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addEvent()}
-              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none" }} />
-            <div style={{ display: "flex", gap: 10 }}>
-              <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
-                style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
-              <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })}
-                style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
-            </div>
-            <input placeholder="note (optional)" value={newEvent.note} onChange={e => setNewEvent({ ...newEvent, note: e.target.value })}
-              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none" }} />
-            <button onClick={addEvent} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>Add Event</button>
+      {adding && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
+        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW EVENT</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addEvent()}
+            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none" }} />
+          <div style={{ display: "flex", gap: 10 }}>
+            <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+            <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
           </div>
+          <input placeholder="note (optional)" value={newEvent.note} onChange={e => setNewEvent({ ...newEvent, note: e.target.value })} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none" }} />
+          <button onClick={addEvent} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>Add Event</button>
         </div>
-      )}
+      </div>}
       {present.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>nothing scheduled yet</div>}
       {Object.entries(grouped).map(([month, evs]) => (
         <div key={month} style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {evs.map(e => {
-              const d = new Date(e.date + "T00:00:00");
-              const isItToday = isToday(e.date);
-              return (
-                <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
-                  <div style={{ textAlign: "center", minWidth: 32 }}>
-                    <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
-                    <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                      {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
-                      {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
-                    </div>
-                  </div>
-                  <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+              const d = new Date(e.date + "T00:00:00"); const isItToday = isToday(e.date);
+              return <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
+                <div style={{ textAlign: "center", minWidth: 32 }}>
+                  <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
+                  <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                 </div>
-              );
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
+                  <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                    {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
+                    {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
+                  </div>
+                </div>
+                <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+              </div>;
             })}
           </div>
         </div>
       ))}
-      {past.length > 0 && (
-        <details style={{ marginTop: 10 }}>
-          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
-            {past.reverse().map(e => (
-              <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
-                <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{e.title}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      {past.length > 0 && <details style={{ marginTop: 10 }}>
+        <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
+          {past.reverse().map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
+            <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{e.title}</span>
+          </div>)}
+        </div>
+      </details>}
     </div>
   );
 }
@@ -736,7 +1019,6 @@ function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-
   async function handleAuth() {
     setError(""); setSuccessMsg(""); setLoading(true);
     try {
@@ -755,7 +1037,6 @@ function AuthScreen() {
     } catch (e) { setError(e.message); }
     setLoading(false);
   }
-
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace", position: "relative", overflow: "hidden" }}>
       <style>{`
@@ -799,30 +1080,24 @@ function AuthScreen() {
                 style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }} />
             </div>
           )}
-          {error && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{error}</div>}
-          {successMsg && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>{successMsg}</div>}
+          {error && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: 10, background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{error}</div>}
+          {successMsg && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: 10, background: "#001f00", borderRadius: 4, textAlign: "center" }}>{successMsg}</div>}
           <button onClick={handleAuth} disabled={loading || !email || (mode !== "forgot" && !password)}
-            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8, transition: "all .15s" }}>
+            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8 }}>
             {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
           </button>
-          {mode !== "forgot" && (
-            <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }} disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
-              {mode === "signin" ? "Create Account" : "Back to Sign In"}
-            </button>
-          )}
-          {mode === "signin" && (
-            <button onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }} disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              Forgot password?
-            </button>
-          )}
-          {mode === "forgot" && (
-            <button onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }} disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              Back to Sign In
-            </button>
-          )}
+          {mode !== "forgot" && <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }} disabled={loading}
+            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
+            {mode === "signin" ? "Create Account" : "Back to Sign In"}
+          </button>}
+          {mode === "signin" && <button onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }} disabled={loading}
+            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            Forgot password?
+          </button>}
+          {mode === "forgot" && <button onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }} disabled={loading}
+            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            Back to Sign In
+          </button>}
           <div style={{ fontSize: 10, color: C.textDim, marginTop: 12 }}>your data is yours · private by design</div>
         </div>
       </section>
@@ -833,9 +1108,9 @@ function AuthScreen() {
         <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
           {[
-            { num: "01", title: "A schedule that moves with you", desc: "Drag blocks to reorder when things shift. Time is flexible, structure is the point." },
+            { num: "01", title: "A schedule that moves with you", desc: "Visual time blocks sized by duration. Drag to move, drag the edge to resize. See your day at a glance." },
             { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
-            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag—use it enough and it becomes a tracked category." },
+            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag — use it enough and it becomes a tracked category." },
             { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
             { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
             { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
@@ -881,35 +1156,25 @@ export default function App() {
   const [tasks, setTasks]                   = useState([]);
   const [events, setEvents]                 = useState([]);
   const [tags, setTags]                     = useState(SEED_TAGS);
-  const [dragging, setDragging]             = useState(null);
-  const [dragOver, setDragOver]             = useState(null);
   const [mood, setMood]                     = useState(2);
   const [dayNote, setDayNote]               = useState("");
   const [wins, setWins]                     = useState("");
   const [hard, setHard]                     = useState("");
   const [archive, setArchive]               = useState({});
-  const [addingBlock, setAddingBlock]       = useState(false);
-  const [newBlock, setNewBlock]             = useState({ tag: "work", label: "", time: "9:00am" });
   const [expandedArchive, setExpandedArchive] = useState(null);
-  const [editingNote, setEditingNote]       = useState(null);
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
-  const dragItem = useRef(null);
-  const timelineRef = useRef(null);
 
-  // Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Password reset token check
   useEffect(() => {
     if (window.location.hash.includes("type=recovery")) setShowResetForm(true);
   }, []);
 
-  // Late night check
   useEffect(() => {
     if (!session) return;
     const hour = new Date().getHours();
@@ -917,10 +1182,7 @@ export default function App() {
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
     const yk = yesterday.toISOString().slice(0, 10);
     if (localStorage.getItem("flux_latenight_" + yk)) return;
-    if (blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote) {
-      setLateNightKey(yk);
-      setShowLateNightPrompt(true);
-    }
+    if (blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote) { setLateNightKey(yk); setShowLateNightPrompt(true); }
   }, [session, blocks]);
 
   function handleLateNightChoice(choice) {
@@ -933,10 +1195,8 @@ export default function App() {
     }
   }
 
-  // Load data
   useEffect(() => { if (!session) return; loadData(); }, [session]);
 
-  // Auto-save
   useEffect(() => {
     if (!session) return;
     const timer = setTimeout(() => { saveToday(false); }, 1000);
@@ -955,7 +1215,7 @@ export default function App() {
       if (userData) {
         if (userData.tags) setTags(userData.tags);
         if (userData.today_key === todayKey()) {
-          if (userData.blocks) setBlocks(userData.blocks);
+          if (userData.blocks) setBlocks(userData.blocks.map(b => ({ ...b, duration: b.duration || DEFAULT_DURATION })));
           if (userData.tasks) setTasks(userData.tasks);
           if (userData.mood !== undefined) setMood(userData.mood);
           if (userData.day_note) setDayNote(userData.day_note);
@@ -1005,9 +1265,7 @@ export default function App() {
     if (!session) return;
     const uid = session.user.id;
     await supabase.from("archive").delete().eq("user_id", uid).eq("day_key", dayKey);
-    const updated = { ...archive };
-    delete updated[dayKey];
-    setArchive(updated);
+    const updated = { ...archive }; delete updated[dayKey]; setArchive(updated);
   }
 
   async function saveEvents(newEvents) {
@@ -1024,19 +1282,22 @@ export default function App() {
     await supabase.from("user_data").upsert({ user_id: session.user.id, today_key: todayKey(), tags: t }, { onConflict: "user_id" });
   }
 
-  function updateBlock(id, patch) { setBlocks(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
-  function deleteBlock(id) { setBlocks(blocks.filter(b => b.id !== id)); }
-  function addBlock() {
-    if (!newBlock.label.trim()) return;
-    setBlocks([...blocks, { ...newBlock, id: genId(), note: "" }]);
-    setNewBlock({ tag: "work", label: "", time: "9:00am" }); setAddingBlock(false);
+  async function handlePasswordReset() {
+    setResetError("");
+    if (resetPassword.length < 6) { setResetError("Password must be at least 6 characters"); return; }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: resetPassword });
+      if (error) setResetError(error.message);
+      else { setResetSuccess(true); setTimeout(() => { setShowResetForm(false); setResetPassword(""); window.location.hash = ""; setResetSuccess(false); }, 2000); }
+    } catch (e) { setResetError(e.message); }
+    setResetLoading(false);
   }
 
   const archiveCount = Object.keys(archive).length;
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
 
-  // Password reset screen
   if (showResetForm) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -1061,18 +1322,6 @@ export default function App() {
     );
   }
 
-  async function handlePasswordReset() {
-    setResetError("");
-    if (resetPassword.length < 6) { setResetError("Password must be at least 6 characters"); return; }
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: resetPassword });
-      if (error) setResetError(error.message);
-      else { setResetSuccess(true); setTimeout(() => { setShowResetForm(false); setResetPassword(""); window.location.hash = ""; setResetSuccess(false); }, 2000); }
-    } catch (e) { setResetError(e.message); }
-    setResetLoading(false);
-  }
-
   if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
   if (!session) return <AuthScreen />;
 
@@ -1083,7 +1332,6 @@ export default function App() {
         *{box-sizing:border-box;margin:0;padding:0}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
         textarea,input{font-family:inherit}
-        .br:hover .ba{opacity:1!important}
         .task-row:hover .task-del{opacity:1!important}
         .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
         .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
@@ -1091,21 +1339,15 @@ export default function App() {
         .nav:hover:not(.on){color:${C.textMid}}
         .ac{cursor:pointer;transition:background .15s}
         .ac:hover{background:#222226!important}
-        .fl{animation:fi .25s ease}
-        @keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
         .tag-chip{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;margin:3px 3px 0 0;border:1px solid}
-        .addbtn{width:100%;background:none;border:1px dashed ${C.border};color:${C.textDim};border-radius:6px;padding:9px;font-size:12px;cursor:pointer;letter-spacing:1px;transition:all .15s;font-family:inherit}
-        .addbtn:hover{border-color:${C.accent};color:${C.accent}}
         details summary::-webkit-details-marker{display:none}
         @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
       `}</style>
 
-      {/* Banners and prompts */}
       <EarlyAccessBanner />
       {showLateNightPrompt && <LateNightPrompt onChoose={handleLateNightChoice} />}
 
-      {/* Toast */}
       {flash && (
         <div style={{ position: "fixed", bottom: 24, right: 24, background: flash === "archived" ? "#10b98120" : C.card, border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`, borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`, borderRadius: 6, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, zIndex: 1000, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", animation: "slideUp .35s ease" }}>
           <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "💾"}</span>
@@ -1115,7 +1357,7 @@ export default function App() {
 
       {/* Nav */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 3, color: C.accent }}>FLUX</div>
             {dbLoading && <span style={{ fontSize: 11, color: C.textDim }}>syncing...</span>}
@@ -1132,14 +1374,13 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px 24px 80px" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px 24px 80px" }}>
 
         {/* TODAY */}
         {view === "today" && <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag blocks to change time · click empty space to add</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
@@ -1152,92 +1393,19 @@ export default function App() {
           </div>
 
           {promotedTags.length > 0 && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>tags:</span>
               {promotedTags.map(t => <TagPill key={t.id} tag={t} small />)}
             </div>
           )}
 
-          {/* Timeline */}
-          <div style={{ position: "relative", marginBottom: 12 }}>
-            <div style={{ display: "flex", height: TIMES.length * 20, border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}>
-              <div style={{ width: 60, background: C.surface, borderRight: `1px solid ${C.border}`, padding: "2px 0" }}>
-                {TIMES.map((time) => (
-                  <div key={time} style={{ height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.textDim }}>{time}</div>
-                ))}
-              </div>
-              <div ref={timelineRef} style={{ flex: 1, position: "relative", background: C.bg }}
-                onClick={(e) => {
-                  const rect = timelineRef.current.getBoundingClientRect();
-                  const newTime = getTimeFromPosition(e.clientY - rect.top, rect.height);
-                  setNewBlock({ ...newBlock, time: newTime }); setAddingBlock(true);
-                }}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => {
-                  e.preventDefault();
-                  if (!dragItem.current) return;
-                  const rect = timelineRef.current.getBoundingClientRect();
-                  const newTime = getTimeFromPosition(e.clientY - rect.top, rect.height);
-                  updateBlock(dragItem.current, { time: newTime });
-                  setDragging(null); dragItem.current = null;
-                }}
-              >
-                {TIMES.map((time, i) => (
-                  <div key={time} style={{ position: "absolute", top: i * 20, left: 0, right: 0, height: 20, borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none", background: i % 2 === 0 ? "transparent" : `${C.surface}20`, pointerEvents: "none" }} />
-                ))}
-                {blocks.map(block => {
-                  const tag = resolveTag(block.tag, tags);
-                  const slotIndex = getTimeSlotIndex(block.time);
-                  return (
-                    <div key={block.id} draggable
-                      onDragStart={() => { dragItem.current = block.id; setDragging(block.id); }}
-                      onDragEnd={() => { setDragging(null); dragItem.current = null; }}
-                      className="br"
-                      style={{ position: "absolute", top: slotIndex * 20, left: 4, right: 4, height: 40, background: dragging === block.id ? "#1e1e21" : C.card, border: `1px solid ${dragging === block.id ? tag.color : C.border}`, borderLeft: `3px solid ${tag.color || C.border}`, borderRadius: 4, padding: "6px 8px", cursor: "grab", opacity: dragging === block.id ? .7 : 1, transition: "all .15s", zIndex: dragging === block.id ? 10 : 1, boxShadow: dragging === block.id ? "0 4px 12px rgba(0,0,0,0.3)" : "none" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%" }}>
-                        <span style={{ color: C.textDim, fontSize: 11, userSelect: "none", flexShrink: 0 }}>⠿</span>
-                        <span style={{ color: C.textDim, fontSize: 11, minWidth: 46, textAlign: "center", fontFamily: "monospace" }}>{block.time}</span>
-                        <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.label}</span>
-                        <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
-                          <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
-                        </div>
-                        <div className="ba" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity .15s", flexShrink: 0 }}>
-                          <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 2px" }}>📝</button>
-                          <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 2px" }}>✕</button>
-                        </div>
-                      </div>
-                      {editingNote === block.id && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4 }}>
-                          <textarea autoFocus placeholder="note this block..." value={block.note} onChange={e => updateBlock(block.id, { note: e.target.value })} onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
-                            style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }} />
-                        </div>
-                      )}
-                      {block.note && editingNote !== block.id && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 2, fontSize: 11, color: C.textMid, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>{block.note}</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, textAlign: "center" }}>click empty space to add blocks · drag blocks to change time</div>
-          </div>
-
-          {addingBlock && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 22 }}>
-              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK AT {newBlock.time.toUpperCase()}</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })} onKeyDown={e => e.key === "Enter" && addBlock()}
-                  style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 130 }} />
-                <div style={{ fontSize: 11, color: C.textDim }}>tag:</div>
-                <TagSelector tags={tags} value={newBlock.tag} onChange={tagId => setNewBlock({ ...newBlock, tag: tagId })} onCreateTag={persistTags} />
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button onClick={addBlock} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
-                <button onClick={() => setAddingBlock(false)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              </div>
-            </div>
-          )}
+          {/* Visual Timeline */}
+          <VisualTimeline
+            blocks={blocks}
+            onBlocksChange={setBlocks}
+            tags={tags}
+            onPersistTags={persistTags}
+          />
 
           <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
           <UpcomingDrawer events={events} />
@@ -1292,13 +1460,9 @@ export default function App() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button onClick={e => { e.stopPropagation(); printDay(day, tags); }}
-                        style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
-                        print
-                      </button>
+                        style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>print</button>
                       <button onClick={e => { e.stopPropagation(); if (window.confirm(`Delete ${day.date || key}? This cannot be undone.`)) deleteArchiveDay(key); }}
-                        style={{ background: "transparent", color: "#ff4d4d", border: "1px solid #ff4d4d", padding: "2px 6px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
-                        delete
-                      </button>
+                        style={{ background: "transparent", color: "#ff4d4d", border: "1px solid #ff4d4d", padding: "2px 6px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
                       <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
                     </div>
                   </div>
@@ -1306,11 +1470,14 @@ export default function App() {
                     <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
                       <div style={{ marginBottom: 12 }}>
                         <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>SCHEDULE</div>
-                        {(day.blocks || []).map(b => {
+                        {(day.blocks || []).sort((a,b) => timeToMinutes(a.time) - timeToMinutes(b.time)).map(b => {
                           const t = resolveTag(b.tag, tags);
+                          const dur = b.duration || DEFAULT_DURATION;
+                          const durStr = dur >= 60 ? `${Math.floor(dur/60)}h${dur%60 ? dur%60+"m" : ""}` : `${dur}m`;
                           return (
                             <div key={b.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 5 }}>
                               <span style={{ fontSize: 10, color: t.color, minWidth: 62 }}>{b.time}</span>
+                              <span style={{ fontSize: 10, color: C.textDim, minWidth: 28 }}>{durStr}</span>
                               <span style={{ fontSize: 12, color: C.text }}>{b.label}</span>
                               <span style={{ fontSize: 10, color: t.color, opacity: .7 }}>{t.label}</span>
                               {b.note && <span style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>— {b.note}</span>}
@@ -1321,20 +1488,16 @@ export default function App() {
                       {day.tasks?.length > 0 && (
                         <div style={{ marginBottom: 12 }}>
                           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>TASKS</div>
-                          {doneTasks.map(t => (
-                            <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, color: "#10b981" }}>✓</span>
-                              <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{t.label}</span>
-                              {t.doneAt && <span style={{ fontSize: 10, color: C.textDim }}>{t.doneAt}</span>}
-                            </div>
-                          ))}
-                          {pendingTasks.map(t => (
-                            <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, color: C.textDim }}>○</span>
-                              <span style={{ fontSize: 12, color: C.textDim }}>{t.label}</span>
-                              <span style={{ fontSize: 10, color: C.accent, opacity: .6 }}>rolled over</span>
-                            </div>
-                          ))}
+                          {doneTasks.map(t => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: "#10b981" }}>✓</span>
+                            <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{t.label}</span>
+                            {t.doneAt && <span style={{ fontSize: 10, color: C.textDim }}>{t.doneAt}</span>}
+                          </div>)}
+                          {pendingTasks.map(t => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: C.textDim }}>○</span>
+                            <span style={{ fontSize: 12, color: C.textDim }}>{t.label}</span>
+                            <span style={{ fontSize: 10, color: C.accent, opacity: .6 }}>rolled over</span>
+                          </div>)}
                         </div>
                       )}
                       {day.wins && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>WINS</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.wins}</div></div>}
@@ -1387,9 +1550,7 @@ export default function App() {
             {patterns.dowAvg.length > 0 && (
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "15px 18px", marginBottom: 14 }}>
                 <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 13 }}>ENERGY BY DAY OF WEEK</div>
-                {patterns.dowAvg.slice(0, 5).map(d => (
-                  <MiniBar key={d.dow} label={d.dow} value={d.avg} max={4} color={d.avg >= 3 ? "#10b981" : d.avg >= 2 ? "#6c63ff" : C.accent} sub={MOODS[Math.round(d.avg)]?.split(" ")[0]} />
-                ))}
+                {patterns.dowAvg.slice(0, 5).map(d => <MiniBar key={d.dow} label={d.dow} value={d.avg} max={4} color={d.avg >= 3 ? "#10b981" : d.avg >= 2 ? "#6c63ff" : C.accent} sub={MOODS[Math.round(d.avg)]?.split(" ")[0]} />)}
               </div>
             )}
             {patterns.tagDist.length > 0 && (
