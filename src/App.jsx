@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import HelpSystem from './HelpSystem.jsx'
+import HelpSystem from './HelpSystem.jsx';
 import { createClient } from "@supabase/supabase-js";
 
-// ── Supabase ─────────────────────────────────────────────────────────
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
   process.env.REACT_APP_SUPABASE_ANON_KEY
 );
 
-// ── Palette ──────────────────────────────────────────────────────────
 const C = {
   bg: "#0e0e0f", surface: "#161618", card: "#1c1c1f", border: "#2a2a2e",
   accent: "#e8365d", accentDim: "#3d1220",
@@ -41,7 +39,6 @@ const TIMES = Array.from({ length: 34 }, (_, i) => {
 });
 const MOODS = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
 
-// ── Helpers ───────────────────────────────────────────────────────────
 function genId() { return Math.random().toString(36).slice(2, 9); }
 function today() { return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }); }
 function todayKey() { return new Date().toISOString().slice(0, 10); }
@@ -52,8 +49,8 @@ function nowStamp() {
 }
 function formatEventDate(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
-  const today = new Date(); today.setHours(0,0,0,0);
-  const diff = Math.round((d - today) / 86400000);
+  const t = new Date(); t.setHours(0,0,0,0);
+  const diff = Math.round((d - t) / 86400000);
   if (diff === 0) return "today";
   if (diff === 1) return "tomorrow";
   if (diff === -1) return "yesterday";
@@ -63,27 +60,17 @@ function formatEventDate(dateStr) {
 function isToday(dateStr) { return dateStr === todayKey(); }
 function isFuture(dateStr) { return dateStr >= todayKey(); }
 
-// ── Timeline helpers ──────────────────────────────────────────────────
-function timeToMinutes(timeStr) {
+function getTimeSlotIndex(timeStr) {
   const [time, ampm] = timeStr.split(/(am|pm)/);
   let [hours, minutes] = time.split(':').map(Number);
   if (ampm === 'pm' && hours !== 12) hours += 12;
   if (ampm === 'am' && hours === 12) hours = 0;
-  return hours * 60 + minutes;
-}
-
-function minutesToTime(minutes) {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
-  const ampm = h < 12 ? "am" : "pm";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m === 0 ? "00" : "30"}${ampm}`;
-}
-
-function getTimeSlotIndex(timeStr) {
-  const minutes = timeToMinutes(timeStr);
-  const startMinutes = timeToMinutes(TIMES[0]);
-  return Math.round((minutes - startMinutes) / 30);
+  const minutes_total = hours * 60 + minutes;
+  const [startTime, startAmpm] = TIMES[0].split(/(am|pm)/);
+  let [startH] = startTime.split(':').map(Number);
+  if (startAmpm === 'pm' && startH !== 12) startH += 12;
+  const startMinutes = startH * 60;
+  return Math.round((minutes_total - startMinutes) / 30);
 }
 
 function getTimeFromPosition(y, timelineHeight) {
@@ -93,7 +80,6 @@ function getTimeFromPosition(y, timelineHeight) {
   return TIMES[clampedIndex];
 }
 
-// ── Tag helpers ───────────────────────────────────────────────────────
 function resolveTag(tagId, tags) {
   return tags.find(t => t.id === tagId) || { label: tagId, color: C.textDim, bg: C.surface };
 }
@@ -119,7 +105,6 @@ function makeDefaults() {
   ];
 }
 
-// ── Pattern helpers ───────────────────────────────────────────────────
 const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","went","felt","really","very","like","time","day","today","some","more","too","been","then","also","into"]);
 function topWords(text, n = 6) {
   const freq = {};
@@ -162,6 +147,171 @@ function computePatterns(archive, tags) {
   };
 }
 
+// ── Print ─────────────────────────────────────────────────────────────
+function printDay(day, tags) {
+  const resolveT = (tagId) => tags.find(t => t.id === tagId) || { label: tagId, color: "#50505a", bg: "#161618" };
+  const MOODS_PRINT = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
+  const doneTasks = (day.tasks || []).filter(t => t.done);
+  const pendingTasks = (day.tasks || []).filter(t => !t.done);
+  const ROLLOVER_THRESHOLD = 3;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flux - ${day.date || day.key}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 5.5in; height: 8.5in; background: #fff; }
+body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; color: #1a1a1a; overflow: hidden; }
+.content { flex: 1; padding: 28px 22px 24px 26px; display: flex; flex-direction: column; }
+.doodle { width: 108px; flex-shrink: 0; background: #fafafa; border-left: 1px solid #e0e0e0; position: relative; overflow: hidden; }
+.doodle::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, #c8c8c8 0.8px, transparent 0.8px); background-size: 10px 10px; background-position: 5px 5px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 10px; border-bottom: 2.5px solid #e8365d; margin-bottom: 14px; }
+.flux-word { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px; color: #e8365d; line-height: 1; }
+.sub { font-size: 7px; letter-spacing: 2px; color: #bbb; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 1px; }
+.dow { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 2px; color: #1a1a1a; line-height: 1; text-align: right; }
+.date-str { font-size: 9px; color: #999; margin-top: 1px; font-family: 'DM Mono', monospace; text-align: right; }
+.energy-row { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+.energy-lbl { font-size: 7px; letter-spacing: 2px; color: #aaa; text-transform: uppercase; font-family: 'DM Mono', monospace; min-width: 44px; }
+.dots { display: flex; gap: 4px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #ddd; }
+.dot.on { background: #e8365d; border-color: #e8365d; }
+.energy-val { font-size: 9px; color: #999; font-style: italic; }
+.sec-label { font-size: 7px; letter-spacing: 2.5px; text-transform: uppercase; color: #e8365d; font-family: 'DM Mono', monospace; font-weight: 500; margin-bottom: 5px; padding-bottom: 3px; border-bottom: 1px solid #f2f2f2; }
+.schedule { margin-bottom: 13px; }
+.block-row { display: flex; align-items: flex-start; gap: 7px; padding: 3px 0; border-bottom: 1px solid #f8f8f8; }
+.b-time { font-size: 8.5px; color: #e8365d; min-width: 42px; font-family: 'DM Mono', monospace; padding-top: 2px; flex-shrink: 0; }
+.b-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.b-label { font-size: 11px; color: #1a1a1a; line-height: 1.3; }
+.b-tag { font-size: 8px; color: #bbb; font-family: 'DM Mono', monospace; }
+.b-note { font-size: 8px; color: #aaa; font-style: italic; }
+.tasks { margin-bottom: 13px; }
+.task-row { display: flex; align-items: center; gap: 7px; padding: 3.5px 0; border-bottom: 1px solid #f8f8f8; }
+.cb { width: 11px; height: 11px; border-radius: 2px; border: 1.5px solid #ccc; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 7px; }
+.cb.done { background: #10b981; border-color: #10b981; color: #fff; }
+.t-label { flex: 1; font-size: 11px; color: #1a1a1a; line-height: 1.3; }
+.t-label.crossed { text-decoration: line-through; color: #bbb; }
+.t-done-time { font-size: 8px; color: #ccc; font-family: 'DM Mono', monospace; flex-shrink: 0; }
+.rolled { color: #e8365d; font-size: 9px; margin-left: 2px; }
+.journal { margin-bottom: 10px; }
+.j-content { font-size: 10.5px; color: #333; line-height: 1.6; margin-bottom: 4px; font-style: italic; }
+.wline { border-bottom: 1px solid #ebebeb; height: 18px; }
+.page-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.f-flux { font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; color: #ddd; font-size: 11px; }
+.f-id { font-size: 8px; color: #ccc; font-family: 'DM Mono', monospace; }
+.f-note { font-size: 8px; color: #ccc; font-family: 'DM Mono', monospace; }
+.corner-geo { position: absolute; bottom: 0; right: 0; width: 90px; height: 90px; }
+@media print {
+  html, body { width: 5.5in; height: 8.5in; }
+  @page { size: 5.5in 8.5in; margin: 0; }
+}
+</style>
+</head>
+<body>
+<div class="content">
+  <div class="page-header">
+    <div>
+      <div class="flux-word">FLUX</div>
+      <div class="sub">daily log</div>
+    </div>
+    <div>
+      <div class="dow">${new Date((day.key || todayKey()) + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })}</div>
+      <div class="date-str">${day.date || day.key}</div>
+    </div>
+  </div>
+
+  <div class="energy-row">
+    <div class="energy-lbl">Energy</div>
+    <div class="dots">
+      ${[0,1,2,3,4].map(i => `<div class="dot${i <= (day.mood ?? 2) ? " on" : ""}"></div>`).join("")}
+    </div>
+    <div class="energy-val">${MOODS_PRINT[day.mood ?? 2]}</div>
+  </div>
+
+  <div class="schedule">
+    <div class="sec-label">Schedule</div>
+    ${(day.blocks || []).map(b => {
+      const t = resolveT(b.tag);
+      return `<div class="block-row">
+        <div class="b-time">${b.time}</div>
+        <div class="b-dot" style="background:${t.color}"></div>
+        <div>
+          <div class="b-label">${b.label}</div>
+          <div class="b-tag">${t.label}</div>
+          ${b.note ? `<div class="b-note">${b.note}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>
+
+  ${(day.tasks || []).length > 0 ? `
+  <div class="tasks">
+    <div class="sec-label">Tasks</div>
+    ${doneTasks.map(t => `
+      <div class="task-row">
+        <div class="cb done">✓</div>
+        <div class="t-label crossed">${t.label}</div>
+        <div class="t-done-time">${t.doneAt || ""}</div>
+      </div>`).join("")}
+    ${pendingTasks.map(t => {
+      const rolledCount = (t.addedAt || "").split("(rolled)").length - 1;
+      const showAsterisk = rolledCount >= ROLLOVER_THRESHOLD;
+      return `<div class="task-row">
+        <div class="cb"></div>
+        <div class="t-label">${t.label}${showAsterisk ? '<span class="rolled">*</span>' : ""}</div>
+      </div>`;
+    }).join("")}
+  </div>` : ""}
+
+  ${day.wins ? `
+  <div class="journal">
+    <div class="sec-label">Wins</div>
+    <div class="j-content">${day.wins}</div>
+    <div class="wline"></div><div class="wline"></div>
+  </div>` : `
+  <div class="journal">
+    <div class="sec-label">Wins</div>
+    <div class="wline"></div><div class="wline"></div><div class="wline"></div>
+  </div>`}
+
+  ${day.hard ? `
+  <div class="journal">
+    <div class="sec-label">Hard stuff</div>
+    <div class="j-content">${day.hard}</div>
+    <div class="wline"></div><div class="wline"></div>
+  </div>` : `
+  <div class="journal">
+    <div class="sec-label">Hard stuff</div>
+    <div class="wline"></div><div class="wline"></div><div class="wline"></div>
+  </div>`}
+
+  <div class="page-footer">
+    <div class="f-flux">FLUX</div>
+    <div class="f-note">* rolled 3+ days</div>
+    <div class="f-id">${day.key || ""}</div>
+  </div>
+</div>
+<div class="doodle">
+  <svg class="corner-geo" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="58" cy="62" r="18" stroke="#e8365d" stroke-width="1.2" opacity="0.35"/>
+    <polygon points="30,82 52,82 41,62" stroke="#e8365d" stroke-width="1.2" fill="none" opacity="0.3"/>
+    <rect x="60" y="40" width="16" height="16" stroke="#e8365d" stroke-width="1.2" fill="none" opacity="0.25"/>
+    <circle cx="32" cy="58" r="4" stroke="#e8365d" stroke-width="1.2" fill="none" opacity="0.3"/>
+    <line x1="20" y1="88" x2="88" y2="88" stroke="#e8365d" stroke-width="1" opacity="0.2"/>
+    <line x1="88" y1="20" x2="88" y2="88" stroke="#e8365d" stroke-width="1" opacity="0.2"/>
+  </svg>
+</div>
+<script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+}
+
 // ── Mini components ───────────────────────────────────────────────────
 function MiniBar({ label, value, max, color, sub }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -177,6 +327,7 @@ function MiniBar({ label, value, max, color, sub }) {
     </div>
   );
 }
+
 function Sparkline({ data }) {
   if (!data || data.length < 2) return null;
   const W = 280, H = 44, P = 4;
@@ -194,11 +345,13 @@ function Sparkline({ data }) {
     </svg>
   );
 }
+
 function TagPill({ tag, small, onClick }) {
   return (
     <span onClick={onClick} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: small ? "2px 7px" : "3px 9px", borderRadius: 3, fontSize: small ? 10 : 11, background: tag.bg || C.surface, border: `1px solid ${tag.color || C.border}40`, color: tag.color || C.textDim, cursor: onClick ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" }}>{tag.label}</span>
   );
 }
+
 function TagSelector({ tags, value, onChange, onCreateTag }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -254,6 +407,75 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
   );
 }
 
+// ── Early Access Banner ───────────────────────────────────────────────
+function EarlyAccessBanner() {
+  const [visible, setVisible] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem("flux_banner_dismissed");
+    if (seen) { setVisible(false); setDismissed(true); }
+  }, []);
+
+  function dismiss() {
+    setVisible(false);
+    localStorage.setItem("flux_banner_dismissed", "true");
+    setTimeout(() => setDismissed(true), 400);
+  }
+
+  if (dismissed) return null;
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, left: 24, zIndex: 999,
+      maxWidth: 300, opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(12px)",
+      transition: "opacity .35s ease, transform .35s ease",
+      pointerEvents: visible ? "auto" : "none",
+    }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 6, padding: "12px 14px", boxShadow: "0 4px 20px #00000050" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>🚧 EARLY ACCESS</div>
+            <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>Flux is still being built. Things may shift, break, or get better without warning.</div>
+            <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none", letterSpacing: .5 }}>fluxteam@proton.me</a>
+          </div>
+          <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Late Night Prompt ─────────────────────────────────────────────────
+function LateNightPrompt({ onChoose }) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const todayLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
+  const yesterdayLabel = yesterday.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#000000bb", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxWidth: 380, width: "100%", padding: "32px 28px", boxShadow: "0 24px 80px #00000080" }}>
+        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 12 }}>🌙 IT'S PAST MIDNIGHT</div>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 2, color: C.text, marginBottom: 8 }}>Which day is this for?</div>
+        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.7, marginBottom: 28 }}>Your day doesn't end at midnight — archive whenever you're actually done.</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => onChoose("yesterday")} style={{ background: C.accentDim, border: `1px solid ${C.accent}50`, color: C.text, borderRadius: 6, padding: "14px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left", lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, marginBottom: 3 }}>{yesterdayLabel} — still finishing up</div>
+            <div style={{ fontSize: 11, color: C.textDim }}>keep today's date, archive when you're done</div>
+          </button>
+          <button onClick={() => onChoose("today")} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "14px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left", lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, marginBottom: 3 }}>{todayLabel} — starting fresh</div>
+            <div style={{ fontSize: 11, color: C.textDim }}>roll any undone tasks and begin a new day</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Task Drawer ───────────────────────────────────────────────────────
 function TaskDrawer({ tasks, onTasksChange }) {
   const [open, setOpen] = useState(false);
@@ -279,8 +501,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div onClick={() => setOpen(!open)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
+      <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ tasks</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
@@ -290,49 +511,32 @@ function TaskDrawer({ tasks, onTasksChange }) {
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }}
-            style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }} title="add task">+</span>
+          <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }} style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }} title="add task">+</span>
           <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
         </div>
       </div>
       {open && (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", padding: "12px 14px" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addTask()}
-              placeholder="add a task, hit enter..."
+            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="add a task, hit enter..."
               style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 160 }} />
-            <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)}
-              title="schedule for a future date"
+            <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} title="schedule for a future date"
               style={{ background: C.card, border: `1px solid ${C.border}`, color: schedDate ? C.text : C.textDim, borderRadius: 4, padding: "7px 8px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
-            <button onClick={addTask}
-              style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>add</button>
+            <button onClick={addTask} style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>add</button>
           </div>
-
-          {pending.length === 0 && done.length === 0 && scheduled.length === 0 && (
-            <div style={{ fontSize: 12, color: C.textDim, padding: "8px 0", textAlign: "center" }}>nothing here yet</div>
-          )}
-          {pending.length === 0 && done.length > 0 && (
-            <div style={{ fontSize: 12, color: "#10b981", padding: "6px 0", textAlign: "center" }}>everything done 🎉</div>
-          )}
-
+          {pending.length === 0 && done.length === 0 && scheduled.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "8px 0", textAlign: "center" }}>nothing here yet</div>}
+          {pending.length === 0 && done.length > 0 && <div style={{ fontSize: 12, color: "#10b981", padding: "6px 0", textAlign: "center" }}>everything done 🎉</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {pending.map(task => (
-              <div key={task.id} className="task-row"
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 4, background: C.card, border: `1px solid ${C.border}` }}>
-                <div onClick={() => toggleTask(task.id)}
-                  style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${C.border}`, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = "#10b981"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = C.border} />
+              <div key={task.id} className="task-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 4, background: C.card, border: `1px solid ${C.border}` }}>
+                <div onClick={() => toggleTask(task.id)} style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${C.border}`, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "#10b981"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border} />
                 <span style={{ flex: 1, fontSize: 13, color: C.text }}>{task.label}</span>
                 {task.addedAt && <span style={{ fontSize: 10, color: C.textDim }}>{task.addedAt}</span>}
-                <button onClick={() => deleteTask(task.id)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 3px", opacity: 0, transition: "opacity .15s" }}
-                  className="task-del">✕</button>
+                <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 3px", opacity: 0, transition: "opacity .15s" }} className="task-del">✕</button>
               </div>
             ))}
           </div>
-
           {scheduled.length > 0 && (
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 6 }}>SCHEDULED</div>
@@ -345,14 +549,12 @@ function TaskDrawer({ tasks, onTasksChange }) {
               ))}
             </div>
           )}
-
           {done.length > 0 && (
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 6 }}>DONE TODAY</div>
               {done.map(task => (
                 <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 4, opacity: .45 }}>
-                  <div onClick={() => toggleTask(task.id)}
-                    style={{ width: 16, height: 16, borderRadius: 3, border: "1.5px solid #10b981", background: "#10b98120", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div onClick={() => toggleTask(task.id)} style={{ width: 16, height: 16, borderRadius: 3, border: "1.5px solid #10b981", background: "#10b98120", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <span style={{ fontSize: 10, color: "#10b981" }}>✓</span>
                   </div>
                   <span style={{ flex: 1, fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{task.label}</span>
@@ -361,9 +563,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
               ))}
             </div>
           )}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
-            archive day → snapshot saved · done cleared · undone rolls to tomorrow
-          </div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>archive day → snapshot saved · done cleared · undone rolls to tomorrow</div>
         </div>
       )}
     </div>
@@ -373,9 +573,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
 // ── Upcoming Events Drawer ────────────────────────────────────────────
 function UpcomingDrawer({ events }) {
   const [open, setOpen] = useState(false);
-  const upcoming = events
-    .filter(e => isFuture(e.date))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = events.filter(e => isFuture(e.date)).sort((a, b) => a.date.localeCompare(b.date));
   const todayEvents = upcoming.filter(e => isToday(e.date));
   const futureEvents = upcoming.filter(e => !isToday(e.date)).slice(0, 5);
   const next = upcoming.find(e => !isToday(e.date));
@@ -386,8 +584,7 @@ function UpcomingDrawer({ events }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div onClick={() => setOpen(!open)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
+      <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ upcoming</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
@@ -427,9 +624,7 @@ function UpcomingDrawer({ events }) {
             </div>
           )}
           {upcoming.length === 0 && <div style={{ fontSize: 12, color: C.textDim, textAlign: "center", padding: "8px 0" }}>nothing scheduled — add events in the Calendar tab</div>}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim }}>
-            manage events in the Calendar tab
-          </div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim }}>manage events in the Calendar tab</div>
         </div>
       )}
     </div>
@@ -466,40 +661,29 @@ function CalendarView({ events, onEventsChange }) {
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>CALENDAR</div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{present.length} upcoming · {past.length} past</div>
         </div>
-        <button onClick={() => setAdding(!adding)}
-          style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
           {adding ? "cancel" : "+ add event"}
         </button>
       </div>
-
       {adding && (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW EVENT</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
-              onKeyDown={e => e.key === "Enter" && addEvent()}
+            <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addEvent()}
               style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none" }} />
             <div style={{ display: "flex", gap: 10 }}>
               <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
                 style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
               <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })}
-                placeholder="time (optional)"
                 style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
             </div>
             <input placeholder="note (optional)" value={newEvent.note} onChange={e => setNewEvent({ ...newEvent, note: e.target.value })}
               style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none" }} />
-            <button onClick={addEvent}
-              style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>
-              Add Event
-            </button>
+            <button onClick={addEvent} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>Add Event</button>
           </div>
         </div>
       )}
-
-      {present.length === 0 && (
-        <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>nothing scheduled yet</div>
-      )}
-
+      {present.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>nothing scheduled yet</div>}
       {Object.entries(grouped).map(([month, evs]) => (
         <div key={month} style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
@@ -520,20 +704,16 @@ function CalendarView({ events, onEventsChange }) {
                       {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
                     </div>
                   </div>
-                  <button onClick={() => deleteEvent(e.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+                  <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
                 </div>
               );
             })}
           </div>
         </div>
       ))}
-
       {past.length > 0 && (
         <details style={{ marginTop: 10 }}>
-          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>
-            ▸ {past.length} past event{past.length !== 1 ? "s" : ""}
-          </summary>
+          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
             {past.reverse().map(e => (
               <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
@@ -548,49 +728,31 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// ── Email/Password Auth ──────────────────────────────────────────────
+// ── Auth Screen ───────────────────────────────────────────────────────
 function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("signin"); // "signin", "signup", or "forgot"
+  const [mode, setMode] = useState("signin");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   async function handleAuth() {
-    setError("");
-    setSuccessMsg("");
-    setLoading(true);
+    setError(""); setSuccessMsg(""); setLoading(true);
     try {
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
-        if (signUpError) {
-          setError(signUpError.message);
-        } else {
-          setSuccessMsg("Account created! Check your email to confirm.");
-          setTimeout(() => {
-            setMode("signin");
-            setPassword("");
-            setEmail("");
-          }, 2000);
-        }
+        const { error: e } = await supabase.auth.signUp({ email, password });
+        if (e) setError(e.message);
+        else { setSuccessMsg("Account created! Check your email to confirm."); setTimeout(() => { setMode("signin"); setPassword(""); setEmail(""); }, 2000); }
       } else if (mode === "signin") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          setError(signInError.message);
-        }
+        const { error: e } = await supabase.auth.signInWithPassword({ email, password });
+        if (e) setError(e.message);
       } else if (mode === "forgot") {
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
-        if (resetError) {
-          setError(resetError.message);
-        } else {
-          setSuccessMsg("Reset link sent to your email");
-          setEmail("");
-        }
+        const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+        if (e) setError(e.message);
+        else { setSuccessMsg("Reset link sent to your email"); setEmail(""); }
       }
-    } catch (e) {
-      setError(e.message);
-    }
+    } catch (e) { setError(e.message); }
     setLoading(false);
   }
 
@@ -599,166 +761,74 @@ function AuthScreen() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        
-        .glow {
-          position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
-          width: 800px; height: 600px;
-          background: radial-gradient(ellipse at center, ${C.accent}18 0%, transparent 70%);
-          pointer-events: none; z-index: 0;
-        }
-        
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .feature-card {
-          background: ${C.card}; border: 1px solid ${C.border};
-          padding: 28px 24px; position: relative; overflow: hidden; transition: border-color .2s;
-        }
-        .feature-card:hover { border-color: ${C.accent}30; }
-        .feature-card::before {
-          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-          background: ${C.accent}; transform: scaleX(0); transform-origin: left; transition: transform .3s ease;
-        }
-        .feature-card:hover::before { transform: scaleX(1); }
+        .glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse at center,${C.accent}18 0%,transparent 70%);pointer-events:none;z-index:0}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        .feature-card{background:${C.card};border:1px solid ${C.border};padding:28px 24px;position:relative;overflow:hidden;transition:border-color .2s}
+        .feature-card:hover{border-color:${C.accent}30}
+        .feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:${C.accent};transform:scaleX(0);transform-origin:left;transition:transform .3s ease}
+        .feature-card:hover::before{transform:scaleX(1)}
       `}</style>
-
       <div className="glow" />
-
-      {/* Nav */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.border}40`, backdropFilter: "blur(12px)", background: C.bg + "90" }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: C.accent }}>FLUX</div>
       </div>
-
-      {/* Hero Section */}
       <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", padding: "120px 48px 80px", maxWidth: 960, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>
-          A different kind of daily
-        </div>
-
+        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>A different kind of daily</div>
         <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .95, letterSpacing: -2, color: C.text, marginBottom: 8, opacity: 0, animation: "fadeUp .7s ease .35s forwards" }}>
-          Built for brains<br />
-          <em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
+          Built for brains<br /><em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
           <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px, 9vw, 108px)", letterSpacing: 6, display: "block" }}>FLUX</span>
         </h1>
-
-        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 24, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
+        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
           A daily planner that bends instead of breaks. Structure without the rigidity. Flexible blocks, real data about how your days actually go, and a rhythm that works <em>with</em> you.
         </p>
-
-        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
-          Built for clarity. Built to last.
-        </p>
-
-        {/* Auth Form */}
         <div style={{ opacity: 0, animation: "fadeUp .7s ease .65s forwards", width: "100%", maxWidth: 360 }}>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 10 }}>
-              {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
-            </div>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 16 }}>
+            {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
           </div>
-
           {mode === "forgot" ? (
             <div style={{ marginBottom: 16 }}>
-              <input
-                type="email"
-                placeholder="your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1, marginBottom: 12 }}
-              />
-              <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
-                we'll send you a link to reset your password
-              </div>
+              <input type="email" placeholder="your email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1, marginBottom: 8 }} />
+              <div style={{ fontSize: 11, color: C.textDim }}>we'll send you a link to reset your password</div>
             </div>
           ) : (
             <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-              <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
-              />
-              <input
-                type="password"
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
-              />
+              <input type="email" placeholder="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }} />
+              <input type="password" placeholder="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }} />
             </div>
           )}
-
-          {error && (
-            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
-              {error}
-            </div>
-          )}
-
-          {successMsg && (
-            <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
-              {successMsg}
-            </div>
-          )}
-
-          <button
-            onClick={handleAuth}
-            disabled={loading || !email || (mode !== "forgot" && !password)}
-            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: loading || !email || (mode !== "forgot" && !password) ? "default" : "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8, transition: "all .15s" }}
-          >
+          {error && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{error}</div>}
+          {successMsg && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>{successMsg}</div>}
+          <button onClick={handleAuth} disabled={loading || !email || (mode !== "forgot" && !password)}
+            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8, transition: "all .15s" }}>
             {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
           </button>
-
           {mode !== "forgot" && (
-            <button
-              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s", marginBottom: 8 }}
-            >
+            <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }} disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
               {mode === "signin" ? "Create Account" : "Back to Sign In"}
             </button>
           )}
-
           {mode === "signin" && (
-            <button
-              onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
-            >
+            <button onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }} disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
               Forgot password?
             </button>
           )}
-
           {mode === "forgot" && (
-            <button
-              onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}
-              disabled={loading}
-              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: loading ? "default" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, transition: "all .15s" }}
-            >
+            <button onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }} disabled={loading}
+              style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
               Back to Sign In
             </button>
           )}
-
-          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
-            your data is yours · private by design
-          </div>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12 }}>your data is yours · private by design</div>
         </div>
       </section>
-
-      {/* Divider */}
       <div style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "0 48px" }}>
         <hr style={{ border: "none", borderTop: `1px solid ${C.border}` }} />
       </div>
-
-      {/* Features */}
       <section style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "80px 48px" }}>
         <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
@@ -769,17 +839,15 @@ function AuthScreen() {
             { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
             { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
             { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
-          ].map(feature => (
-            <div key={feature.num} className="feature-card">
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{feature.num}</div>
-              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{feature.title}</div>
-              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{feature.desc}</div>
+          ].map(f => (
+            <div key={f.num} className="feature-card">
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{f.num}</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{f.title}</div>
+              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{f.desc}</div>
             </div>
           ))}
         </div>
       </section>
-
-      {/* Manifesto */}
       <div style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "60px 48px", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${C.accent}08 0%, transparent 60%)`, pointerEvents: "none" }} />
         <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48, alignItems: "center", position: "relative", zIndex: 1 }}>
@@ -789,297 +857,89 @@ function AuthScreen() {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
       <footer style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: C.textDim }}>FLUX</div>
-        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>
-          built with care · <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a>
-        </div>
+        <div style={{ fontSize: 10, color: C.textDim }}>built with care · <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a></div>
       </footer>
     </div>
   );
 }
 
-// ── Print Page ────────────────────────────────────────────────────────
-function printDay(day, tags) {
-  const resolveT = (tagId) => tags.find(t => t.id === tagId) || { label: tagId, color: "#50505a", bg: "#161618" };
-  const MOODS_PRINT = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
-  const doneTasks = (day.tasks || []).filter(t => t.done);
-  const pendingTasks = (day.tasks || []).filter(t => !t.done);
-  const ROLLOVER_THRESHOLD = 3;
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Flux · ${day.date || day.key}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 5.5in; height: 8.5in; background: #fff; }
-  body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; color: #1a1a1a; overflow: hidden; }
-
-  .content { flex: 1; padding: 28px 22px 24px 26px; display: flex; flex-direction: column; gap: 0; }
-  .doodle { width: 108px; flex-shrink: 0; background: #fafafa; border-left: 1px solid #e0e0e0; position: relative; overflow: hidden; }
-  .doodle::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, #c8c8c8 0.8px, transparent 0.8px); background-size: 10px 10px; background-position: 5px 5px; }
-
-  .page-header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 10px; border-bottom: 2.5px solid #e8365d; margin-bottom: 14px; }
-  .flux-word { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px; color: #e8365d; line-height: 1; }
-  .sub { font-size: 7px; letter-spacing: 2px; color: #bbb; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 1px; }
-  .dow { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 2px; color: #1a1a1a; line-height: 1; text-align: right; }
-  .date-str { font-size: 9px; color: #999; margin-top: 1px; font-family: 'DM Mono', monospace; text-align: right; }
-
-  .energy-row { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
-  .energy-lbl { font-size: 7px; letter-spacing: 2px; color: #aaa; text-transform: uppercase; font-family: 'DM Mono', monospace; min-width: 44px; }
-  .dots { display: flex; gap: 4px; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #ddd; }
-  .dot.on { background: #e8365d; border-color: #e8365d; }
-  .energy-val { font-size: 9px; color: #999; font-style: italic; }
-
-  .sec-label { font-size: 7px; letter-spacing: 2.5px; text-transform: uppercase; color: #e8365d; font-family: 'DM Mono', monospace; font-weight: 500; mar
 // ══════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [session, setSession]         = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [showResetForm, setShowResetForm] = useState(false);
-  const [resetPassword, setResetPassword] = useState("");
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState("");
-  const [resetSuccess, setResetSuccess] = useState(false);
-  const [view, setView]               = useState("today");
-  const [blocks, setBlocks]           = useState(makeDefaults());
-  const [tasks, setTasks]             = useState([]);
-  const [events, setEvents]           = useState([]);
-  const [tags, setTags]               = useState(SEED_TAGS);
-  const [dragging, setDragging]       = useState(null);
-  const [dragOver, setDragOver]       = useState(null);
-  const [mood, setMood]               = useState(2);
-  const [dayNote, setDayNote]         = useState("");
-  const [wins, setWins]               = useState("");
-  const [hard, setHard]               = useState("");
-  const [archive, setArchive]         = useState({});
-  const [addingBlock, setAddingBlock] = useState(false);
-  const [newBlock, setNewBlock]       = useState({ tag: "work", label: "", time: "9:00am" });
+  const [session, setSession]               = useState(null);
+  const [authLoading, setAuthLoading]       = useState(true);
+  const [showResetForm, setShowResetForm]   = useState(false);
+  const [resetPassword, setResetPassword]   = useState("");
+  const [resetLoading, setResetLoading]     = useState(false);
+  const [resetError, setResetError]         = useState("");
+  const [resetSuccess, setResetSuccess]     = useState(false);
+  const [showLateNightPrompt, setShowLateNightPrompt] = useState(false);
+  const [lateNightKey, setLateNightKey]     = useState(null);
+  const [view, setView]                     = useState("today");
+  const [blocks, setBlocks]                 = useState(makeDefaults());
+  const [tasks, setTasks]                   = useState([]);
+  const [events, setEvents]                 = useState([]);
+  const [tags, setTags]                     = useState(SEED_TAGS);
+  const [dragging, setDragging]             = useState(null);
+  const [dragOver, setDragOver]             = useState(null);
+  const [mood, setMood]                     = useState(2);
+  const [dayNote, setDayNote]               = useState("");
+  const [wins, setWins]                     = useState("");
+  const [hard, setHard]                     = useState("");
+  const [archive, setArchive]               = useState({});
+  const [addingBlock, setAddingBlock]       = useState(false);
+  const [newBlock, setNewBlock]             = useState({ tag: "work", label: "", time: "9:00am" });
   const [expandedArchive, setExpandedArchive] = useState(null);
-  const [editingNote, setEditingNote] = useState(null);
-  const [flash, setFlash]             = useState(null);
-  const [dbLoading, setDbLoading]     = useState(false);
+  const [editingNote, setEditingNote]       = useState(null);
+  const [flash, setFlash]                   = useState(null);
+  const [dbLoading, setDbLoading]           = useState(false);
   const dragItem = useRef(null);
+  const timelineRef = useRef(null);
 
-  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      printDay(day, tags);
-    }}
-    style={{
-      background: "transparent",
-      color: C.textDim,
-      border: `1px solid ${C.border}`,
-      padding: "2px 6px",
-      borderRadius: 4,
-      fontSize: 10,
-      cursor: "pointer",
-    }}
-  >
-    print
-  </button>
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      if (window.confirm(`Are you sure you want to permanently delete...
-// ── Late Night Prompt ─────────────────────────────────────────────────
-function LateNightPrompt({ onChoose }) {
-  const now = new Date();
-  const hour = now.getHours();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const todayLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
-  const yesterdayLabel = yesterday.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 300,
-      background: "#000000bb",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 24, animation: "fadeIn .2s ease",
-    }}>
-      <div style={{
-        background: C.card, border: `1px solid ${C.border}`,
-        borderRadius: 10, maxWidth: 380, width: "100%",
-        padding: "32px 28px",
-        boxShadow: "0 24px 80px #00000080",
-        animation: "slideUp .25s ease",
-      }}>
-        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 12 }}>
-          🌙 IT'S PAST MIDNIGHT
-        </div>
-        <div style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 22, letterSpacing: 2, color: C.text, marginBottom: 8,
-        }}>
-          Which day is this for?
-        </div>
-        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.7, marginBottom: 28 }}>
-          Your day doesn't end at midnight — archive whenever you're actually done.
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={() => onChoose("yesterday")} style={{
-            background: C.accentDim, border: `1px solid ${C.accent}50`,
-            color: C.text, borderRadius: 6, padding: "14px 18px",
-            fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-            textAlign: "left", lineHeight: 1.5, transition: "all .15s",
-          }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
-            onMouseLeave={e => e.currentTarget.style.borderColor = `${C.accent}50`}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 3 }}>
-              {yesterdayLabel} — still finishing up
-            </div>
-            <div style={{ fontSize: 11, color: C.textDim }}>
-              keep today's date, archive when you're done
-            </div>
-          </button>
-
-          <button onClick={() => onChoose("today")} style={{
-            background: C.surface, border: `1px solid ${C.border}`,
-            color: C.text, borderRadius: 6, padding: "14px 18px",
-            fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-            textAlign: "left", lineHeight: 1.5, transition: "all .15s",
-          }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = C.textMid}
-            onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 3 }}>
-              {todayLabel} — starting fresh
-            </div>
-            <div style={{ fontSize: 11, color: C.textDim }}>
-              roll any undone tasks and begin a new day
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-  // ── Early Access Banner ───────────────────────────────────────────────
-function EarlyAccessBanner() {
-  const [visible, setVisible] = useState(true);
-  const [dismissed, setDismissed] = useState(false);
-
+  // Auth
   useEffect(() => {
-    const seen = localStorage.getItem("flux_banner_dismissed");
-    if (seen) { setVisible(false); setDismissed(true); }
-  }, []);
-
-  function dismiss() {
-    setVisible(false);
-    localStorage.setItem("flux_banner_dismissed", "true");
-    setTimeout(() => setDismissed(true), 400);
-  }
-
-  if (dismissed) return null;
-
-  return (
-    <div style={{
-      position: "fixed", bottom: 24, left: 24, zIndex: 999,
-      maxWidth: 300, opacity: visible ? 1 : 0,
-      transform: visible ? "translateY(0)" : "translateY(12px)",
-      transition: "opacity .35s ease, transform .35s ease",
-      pointerEvents: visible ? "auto" : "none",
-    }}>
-      <div style={{
-        background: C.card, border: `1px solid ${C.border}`,
-        borderLeft: `3px solid ${C.accent}`,
-        borderRadius: 6, padding: "12px 14px",
-        boxShadow: "0 4px 20px #00000050",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>🚧 EARLY ACCESS</div>
-            <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>
-              Flux is still being built. Things may shift, break, or get better without warning.
-            </div>
-            <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none", letterSpacing: .5 }}>
-              fluxteam@proton.me
-            </a>
-          </div>
-          <button onClick={dismiss} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0, lineHeight: 1,
-          }}>✕</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-  
-  // ── Auth ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session); setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Check for recovery token in URL ──────────────────────────────────
+  // Password reset token check
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes("type=recovery")) {
-      setShowResetForm(true);
-    }
+    if (window.location.hash.includes("type=recovery")) setShowResetForm(true);
   }, []);
 
-  // ── Handle password reset after email link ────────────────────────────
-  async function handlePasswordReset() {
-    setResetError("");
-    if (resetPassword.length < 6) {
-      setResetError("Password must be at least 6 characters");
-      return;
+  // Late night check
+  useEffect(() => {
+    if (!session) return;
+    const hour = new Date().getHours();
+    if (hour < 0 || hour > 4) return;
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const yk = yesterday.toISOString().slice(0, 10);
+    if (localStorage.getItem("flux_latenight_" + yk)) return;
+    if (blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote) {
+      setLateNightKey(yk);
+      setShowLateNightPrompt(true);
     }
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: resetPassword });
-      if (error) {
-        setResetError(error.message);
-      } else {
-        setResetSuccess(true);
-        setTimeout(() => {
-          setShowResetForm(false);
-          setResetPassword("");
-          window.location.hash = "";
-          setResetSuccess(false);
-        }, 2000);
-      }
-    } catch (e) {
-      setResetError(e.message);
+  }, [session, blocks]);
+
+  function handleLateNightChoice(choice) {
+    setShowLateNightPrompt(false);
+    localStorage.setItem("flux_latenight_" + lateNightKey, "true");
+    if (choice === "today") {
+      const undone = tasks.filter(t => !t.done);
+      setTasks(undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })));
+      setBlocks(makeDefaults()); setMood(2); setDayNote(""); setWins(""); setHard("");
     }
-    setResetLoading(false);
   }
 
-  // ── Load data from Supabase ──────────────────────────────────────────
-  useEffect(() => {
-    if (!session) return;
-    loadData();
-  }, [session]);
+  // Load data
+  useEffect(() => { if (!session) return; loadData(); }, [session]);
 
-  // ── Auto-save on changes ─────────────────────────────────────────────
+  // Auto-save
   useEffect(() => {
     if (!session) return;
-    const timer = setTimeout(() => {
-      saveToday(false); // show notification on auto-save
-    }, 1000); // wait 1 second after last change before saving
+    const timer = setTimeout(() => { saveToday(false); }, 1000);
     return () => clearTimeout(timer);
   }, [blocks, tasks, mood, dayNote, wins, hard, tags]);
 
@@ -1102,12 +962,10 @@ function EarlyAccessBanner() {
           if (userData.wins) setWins(userData.wins);
           if (userData.hard) setHard(userData.hard);
         } else {
-          // new day — roll over undone tasks
           const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
           const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
-          setTasks([...undone.map(t => ({ ...t, addedAt: t.addedAt + " (rolled)" })), ...scheduled]);
-          setBlocks(makeDefaults());
-          setMood(2); setDayNote(""); setWins(""); setHard("");
+          setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
+          setBlocks(makeDefaults()); setMood(2); setDayNote(""); setWins(""); setHard("");
         }
       }
       if (archiveData) {
@@ -1123,8 +981,7 @@ function EarlyAccessBanner() {
   async function saveToday(quiet = false) {
     if (!session) return;
     const uid = session.user.id;
-    const payload = { user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags };
-    await supabase.from("user_data").upsert(payload, { onConflict: "user_id" });
+    await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags }, { onConflict: "user_id" });
     if (!quiet) { setFlash("saved"); setTimeout(() => setFlash(null), 1600); }
   }
 
@@ -1139,10 +996,8 @@ function EarlyAccessBanner() {
       supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
       supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks }, { onConflict: "user_id" }),
     ]);
-    const updatedArchive = { ...archive, [todayKey()]: dayData };
-    setArchive(updatedArchive);
-    const undone = tasks.filter(t => !t.done);
-    setTasks(undone);
+    setArchive({ ...archive, [todayKey()]: dayData });
+    setTasks(tasks.filter(t => !t.done));
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
 
@@ -1150,9 +1005,9 @@ function EarlyAccessBanner() {
     if (!session) return;
     const uid = session.user.id;
     await supabase.from("archive").delete().eq("user_id", uid).eq("day_key", dayKey);
-    const updatedArchive = { ...archive };
-    delete updatedArchive[dayKey];
-    setArchive(updatedArchive);
+    const updated = { ...archive };
+    delete updated[dayKey];
+    setArchive(updated);
   }
 
   async function saveEvents(newEvents) {
@@ -1160,19 +1015,15 @@ function EarlyAccessBanner() {
     if (!session) return;
     const uid = session.user.id;
     await supabase.from("events").delete().eq("user_id", uid);
-    if (newEvents.length > 0) {
-      await supabase.from("events").insert(newEvents.map(e => ({ user_id: uid, event_id: e.id, data: e })));
-    }
+    if (newEvents.length > 0) await supabase.from("events").insert(newEvents.map(e => ({ user_id: uid, event_id: e.id, data: e })));
   }
 
   async function persistTags(t) {
     setTags(t);
     if (!session) return;
-    const uid = session.user.id;
-    await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), tags: t }, { onConflict: "user_id" });
+    await supabase.from("user_data").upsert({ user_id: session.user.id, today_key: todayKey(), tags: t }, { onConflict: "user_id" });
   }
 
-  function handleDragStart(id) { dragItem.current = id; setDragging(id); }
   function updateBlock(id, patch) { setBlocks(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
   function deleteBlock(id) { setBlocks(blocks.filter(b => b.id !== id)); }
   function addBlock() {
@@ -1185,75 +1036,41 @@ function EarlyAccessBanner() {
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
 
+  // Password reset screen
   if (showResetForm) {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 320 }}>
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 3, color: C.accent, marginBottom: 8 }}>FLUX</div>
             <div style={{ fontSize: 12, color: C.textDim }}>reset your password</div>
           </div>
-
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
-            <div style={{ marginBottom: 16 }}>
-              <input
-                type="password"
-                placeholder="new password"
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handlePasswordReset()}
-                disabled={resetLoading}
-                style={{
-                  width: "100%",
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  color: C.text,
-                  borderRadius: 4,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  outline: "none",
-                  opacity: resetLoading ? 0.6 : 1
-                }}
-              />
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 8 }}>min 6 characters</div>
-            </div>
-
-            {resetError && (
-              <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 16, padding: "10px", background: "#1f0000", borderRadius: 4, textAlign: "center" }}>
-                {resetError}
-              </div>
-            )}
-
-            {resetSuccess && (
-              <div style={{ fontSize: 12, color: "#10b981", marginBottom: 16, padding: "10px", background: "#001f00", borderRadius: 4, textAlign: "center" }}>
-                Password updated! Redirecting...
-              </div>
-            )}
-
-            <button
-              onClick={handlePasswordReset}
-              disabled={resetLoading || !resetPassword}
-              style={{
-                width: "100%",
-                background: C.accent,
-                border: "none",
-                color: "#fff",
-                borderRadius: 4,
-                padding: "10px 16px",
-                fontSize: 12,
-                cursor: resetLoading || !resetPassword ? "default" : "pointer",
-                fontFamily: "inherit",
-                letterSpacing: 0.5,
-                opacity: resetLoading || !resetPassword ? 0.6 : 1,
-                transition: "all .15s"
-              }}
-            >
+            <input type="password" placeholder="new password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handlePasswordReset()} disabled={resetLoading}
+              style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "10px 12px", fontSize: 13, outline: "none", marginBottom: 8, opacity: resetLoading ? 0.6 : 1 }} />
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 16 }}>min 6 characters</div>
+            {resetError && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: 10, background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{resetError}</div>}
+            {resetSuccess && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: 10, background: "#001f00", borderRadius: 4, textAlign: "center" }}>Password updated! Redirecting...</div>}
+            <button onClick={handlePasswordReset} disabled={resetLoading || !resetPassword}
+              style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "10px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: resetLoading || !resetPassword ? 0.6 : 1 }}>
               {resetLoading ? "updating..." : "Set New Password"}
             </button>
           </div>
         </div>
       </div>
     );
+  }
+
+  async function handlePasswordReset() {
+    setResetError("");
+    if (resetPassword.length < 6) { setResetError("Password must be at least 6 characters"); return; }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: resetPassword });
+      if (error) setResetError(error.message);
+      else { setResetSuccess(true); setTimeout(() => { setShowResetForm(false); setResetPassword(""); window.location.hash = ""; setResetSuccess(false); }, 2000); }
+    } catch (e) { setResetError(e.message); }
+    setResetLoading(false);
   }
 
   if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
@@ -1280,40 +1097,19 @@ function EarlyAccessBanner() {
         .addbtn{width:100%;background:none;border:1px dashed ${C.border};color:${C.textDim};border-radius:6px;padding:9px;font-size:12px;cursor:pointer;letter-spacing:1px;transition:all .15s;font-family:inherit}
         .addbtn:hover{border-color:${C.accent};color:${C.accent}}
         details summary::-webkit-details-marker{display:none}
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideDown {
-          from { opacity: 1; transform: translateY(0); }
-          to { opacity: 0; transform: translateY(20px); }
-        }
-        .toast-enter { animation: slideUp .35s ease; }
-        .toast-exit { animation: slideDown .35s ease; }
+        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
       `}</style>
 
-      {/* Toast Notification */}
+      {/* Banners and prompts */}
+      <EarlyAccessBanner />
+      {showLateNightPrompt && <LateNightPrompt onChoose={handleLateNightChoice} />}
+
+      {/* Toast */}
       {flash && (
-        <div className="toast-enter" style={{
-          position: "fixed",
-          bottom: 24,
-          right: 24,
-          background: flash === "archived" ? "#10b98120" : C.card,
-          border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`,
-          borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`,
-          borderRadius: 6,
-          padding: "14px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          zIndex: 1000,
-          fontFamily: "inherit",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
-        }}>
+        <div style={{ position: "fixed", bottom: 24, right: 24, background: flash === "archived" ? "#10b98120" : C.card, border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`, borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`, borderRadius: 6, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, zIndex: 1000, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", animation: "slideUp .35s ease" }}>
           <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "💾"}</span>
-          <span style={{ fontSize: 12, color: C.text, letterSpacing: 0.5 }}>
-            {flash === "archived" ? "Day archived" : "Changes saved"}
-          </span>
+          <span style={{ fontSize: 12, color: C.text }}>{flash === "archived" ? "Day archived" : "Changes saved"}</span>
         </div>
       )}
 
@@ -1328,24 +1124,22 @@ function EarlyAccessBanner() {
             <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
-            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>     
+            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
             <HelpSystem />
-            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" 
-               style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1, textDecoration: "none" }} 
-               title="Buy us a coffee ☕">☕</a>
-            <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }} title="sign out">out</button>
+            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.textDim, fontSize: 10, padding: "6px 8px", textDecoration: "none" }} title="support us ☕">☕</a>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }}>out</button>
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px 24px 80px" }}>
 
-        {/* ══ TODAY ══ */}
+        {/* TODAY */}
         {view === "today" && <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag blocks to change time · click empty space to add blocks</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 3 }}>drag blocks to change time · click empty space to add</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
@@ -1367,111 +1161,59 @@ function EarlyAccessBanner() {
           {/* Timeline */}
           <div style={{ position: "relative", marginBottom: 12 }}>
             <div style={{ display: "flex", height: TIMES.length * 20, border: `1px solid ${C.border}`, borderRadius: 6, overflow: "hidden" }}>
-              {/* Time labels */}
               <div style={{ width: 60, background: C.surface, borderRight: `1px solid ${C.border}`, padding: "2px 0" }}>
-                {TIMES.map((time, i) => (
-                  <div key={time} style={{ height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.textDim }}>
-                    {time}
-                  </div>
+                {TIMES.map((time) => (
+                  <div key={time} style={{ height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: C.textDim }}>{time}</div>
                 ))}
               </div>
-              {/* Timeline area */}
-              <div 
-                ref={timelineRef}
-                style={{ flex: 1, position: "relative", background: C.bg }}
+              <div ref={timelineRef} style={{ flex: 1, position: "relative", background: C.bg }}
                 onClick={(e) => {
                   const rect = timelineRef.current.getBoundingClientRect();
-                  const y = e.clientY - rect.top;
-                  const newTime = getTimeFromPosition(y, rect.height);
-                  setNewBlock({ ...newBlock, time: newTime });
-                  setAddingBlock(true);
+                  const newTime = getTimeFromPosition(e.clientY - rect.top, rect.height);
+                  setNewBlock({ ...newBlock, time: newTime }); setAddingBlock(true);
                 }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
                   e.preventDefault();
                   if (!dragItem.current) return;
                   const rect = timelineRef.current.getBoundingClientRect();
-                  const y = e.clientY - rect.top;
-                  const newTime = getTimeFromPosition(y, rect.height);
+                  const newTime = getTimeFromPosition(e.clientY - rect.top, rect.height);
                   updateBlock(dragItem.current, { time: newTime });
-                  setDragging(null);
-                  dragItem.current = null;
+                  setDragging(null); dragItem.current = null;
                 }}
               >
-                {/* Time slots */}
                 {TIMES.map((time, i) => (
-                  <div key={time} style={{ 
-                    position: "absolute", 
-                    top: (i * 20), 
-                    left: 0, 
-                    right: 0, 
-                    height: 20, 
-                    borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none",
-                    background: i % 2 === 0 ? "transparent" : `${C.surface}20`,
-                    pointerEvents: "none"
-                  }} />
+                  <div key={time} style={{ position: "absolute", top: i * 20, left: 0, right: 0, height: 20, borderBottom: i % 2 === 1 ? `1px solid ${C.border}20` : "none", background: i % 2 === 0 ? "transparent" : `${C.surface}20`, pointerEvents: "none" }} />
                 ))}
-                {/* Blocks */}
                 {blocks.map(block => {
                   const tag = resolveTag(block.tag, tags);
                   const slotIndex = getTimeSlotIndex(block.time);
                   return (
-                    <div 
-                      key={block.id}
-                      draggable
-                      onDragStart={(e) => {
-                        dragItem.current = block.id;
-                        setDragging(block.id);
-                      }}
-                      onDragEnd={() => {
-                        setDragging(null);
-                        dragItem.current = null;
-                      }}
-                      className={`br${dragOver === block.id ? " drag-over" : ""}`}
-                      style={{ 
-                        position: "absolute",
-                        top: slotIndex * 20,
-                        left: 4,
-                        right: 4,
-                        height: 40,
-                        background: dragging === block.id ? "#1e1e21" : C.card, 
-                        border: `1px solid ${dragging === block.id ? tag.color : C.border}`, 
-                        borderLeft: `3px solid ${tag.color || C.border}`, 
-                        borderRadius: 4, 
-                        padding: "6px 8px", 
-                        cursor: "grab", 
-                        opacity: dragging === block.id ? .7 : 1, 
-                        transition: "all .15s",
-                        zIndex: dragging === block.id ? 10 : 1,
-                        boxShadow: dragging === block.id ? "0 4px 12px rgba(0,0,0,0.3)" : "none"
-                      }}
-                    >
+                    <div key={block.id} draggable
+                      onDragStart={() => { dragItem.current = block.id; setDragging(block.id); }}
+                      onDragEnd={() => { setDragging(null); dragItem.current = null; }}
+                      className="br"
+                      style={{ position: "absolute", top: slotIndex * 20, left: 4, right: 4, height: 40, background: dragging === block.id ? "#1e1e21" : C.card, border: `1px solid ${dragging === block.id ? tag.color : C.border}`, borderLeft: `3px solid ${tag.color || C.border}`, borderRadius: 4, padding: "6px 8px", cursor: "grab", opacity: dragging === block.id ? .7 : 1, transition: "all .15s", zIndex: dragging === block.id ? 10 : 1, boxShadow: dragging === block.id ? "0 4px 12px rgba(0,0,0,0.3)" : "none" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, height: "100%" }}>
                         <span style={{ color: C.textDim, fontSize: 11, userSelect: "none", flexShrink: 0 }}>⠿</span>
-                        <span style={{ color: C.textDim, fontSize: 11, minWidth: 46, textAlign: "center", fontFamily: "monospace" }}>
-                          {block.time}
-                        </span>
+                        <span style={{ color: C.textDim, fontSize: 11, minWidth: 46, textAlign: "center", fontFamily: "monospace" }}>{block.time}</span>
                         <span style={{ fontSize: 12, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.label}</span>
                         <div onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
                           <TagSelector tags={tags} value={block.tag} onChange={tagId => updateBlock(block.id, { tag: tagId })} onCreateTag={persistTags} />
                         </div>
                         <div className="ba" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity .15s", flexShrink: 0 }}>
-                          <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 2px" }} title="note">📝</button>
-                          <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 2px" }} title="remove">✕</button>
+                          <button onClick={e => { e.stopPropagation(); setEditingNote(editingNote === block.id ? null : block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 2px" }}>📝</button>
+                          <button onClick={e => { e.stopPropagation(); deleteBlock(block.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 2px" }}>✕</button>
                         </div>
                       </div>
                       {editingNote === block.id && (
                         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4 }}>
-                          <textarea autoFocus placeholder="note this block..." value={block.note}
-                            onChange={e => updateBlock(block.id, { note: e.target.value })}
-                            onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
+                          <textarea autoFocus placeholder="note this block..." value={block.note} onChange={e => updateBlock(block.id, { note: e.target.value })} onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}
                             style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 10px", resize: "none", minHeight: 54, lineHeight: 1.5, outline: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }} />
                         </div>
                       )}
                       {block.note && editingNote !== block.id && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 2, fontSize: 11, color: C.textMid, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-                          {block.note}
-                        </div>
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 2, fontSize: 11, color: C.textMid, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>{block.note}</div>
                       )}
                     </div>
                   );
@@ -1481,12 +1223,11 @@ function EarlyAccessBanner() {
             <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, textAlign: "center" }}>click empty space to add blocks · drag blocks to change time</div>
           </div>
 
-          {addingBlock ? (
+          {addingBlock && (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginBottom: 22 }}>
               <div style={{ fontSize: 10, color: C.textDim, marginBottom: 10, letterSpacing: 1 }}>NEW BLOCK AT {newBlock.time.toUpperCase()}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })}
-                  onKeyDown={e => e.key === "Enter" && addBlock()}
+                <input autoFocus placeholder="what is it..." value={newBlock.label} onChange={e => setNewBlock({ ...newBlock, label: e.target.value })} onKeyDown={e => e.key === "Enter" && addBlock()}
                   style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 13, outline: "none", minWidth: 130 }} />
                 <div style={{ fontSize: 11, color: C.textDim }}>tag:</div>
                 <TagSelector tags={tags} value={newBlock.tag} onChange={tagId => setNewBlock({ ...newBlock, tag: tagId })} onCreateTag={persistTags} />
@@ -1496,13 +1237,11 @@ function EarlyAccessBanner() {
                 <button onClick={() => setAddingBlock(false)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
               </div>
             </div>
-          ) : null}
+          )}
 
-          {/* Drawers */}
           <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
           <UpcomingDrawer events={events} />
 
-          {/* Journal */}
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 15 }}>END OF DAY DEBRIEF</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1525,10 +1264,10 @@ function EarlyAccessBanner() {
           </div>
         </>}
 
-        {/* ══ CALENDAR ══ */}
+        {/* CALENDAR */}
         {view === "calendar" && <CalendarView events={events} onEventsChange={saveEvents} />}
 
-        {/* ══ ARCHIVE ══ */}
+        {/* ARCHIVE */}
         {view === "archive" && <>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>ARCHIVE</div>
@@ -1552,30 +1291,16 @@ function EarlyAccessBanner() {
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      if (window.confirm(`Are you sure you want to permanently delete the archived day "${day.date || key}"? This action cannot be undone.`)) {
-        deleteArchiveDay(key);
-      }
-    }}
-    style={{
-      background: "transparent",
-      color: "#ff4d4d",
-      border: "1px solid #ff4d4d",
-      padding: "2px 6px",
-      borderRadius: 4,
-      fontSize: 10,
-      cursor: "pointer"
-    }}
-  >
-    delete
-  </button>
-
-  <div style={{ color: C.textDim, fontSize: 11 }}>
-    {isOpen ? "▲" : "▼"}
-  </div>
-</div>
+                      <button onClick={e => { e.stopPropagation(); printDay(day, tags); }}
+                        style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                        print
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); if (window.confirm(`Delete ${day.date || key}? This cannot be undone.`)) deleteArchiveDay(key); }}
+                        style={{ background: "transparent", color: "#ff4d4d", border: "1px solid #ff4d4d", padding: "2px 6px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                        delete
+                      </button>
+                      <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
+                    </div>
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: `1px solid ${C.border}`, padding: "13px 16px" }} onClick={e => e.stopPropagation()}>
@@ -1623,7 +1348,7 @@ function EarlyAccessBanner() {
           </div>
         </>}
 
-        {/* ══ PATTERNS ══ */}
+        {/* PATTERNS */}
         {view === "patterns" && <>
           {archiveCount < 3 ? (
             <div style={{ textAlign: "center", padding: "60px 0" }}>
@@ -1663,9 +1388,7 @@ function EarlyAccessBanner() {
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "15px 18px", marginBottom: 14 }}>
                 <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 13 }}>ENERGY BY DAY OF WEEK</div>
                 {patterns.dowAvg.slice(0, 5).map(d => (
-                  <MiniBar key={d.dow} label={d.dow} value={d.avg} max={4}
-                    color={d.avg >= 3 ? "#10b981" : d.avg >= 2 ? "#6c63ff" : C.accent}
-                    sub={MOODS[Math.round(d.avg)]?.split(" ")[0]} />
+                  <MiniBar key={d.dow} label={d.dow} value={d.avg} max={4} color={d.avg >= 3 ? "#10b981" : d.avg >= 2 ? "#6c63ff" : C.accent} sub={MOODS[Math.round(d.avg)]?.split(" ")[0]} />
                 ))}
               </div>
             )}
