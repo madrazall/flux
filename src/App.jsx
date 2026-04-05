@@ -829,8 +829,59 @@ export default function App() {
   const [flash, setFlash]             = useState(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
-  const timelineRef = useRef(null);
 
+// ── Early Access Banner ───────────────────────────────────────────────
+function EarlyAccessBanner() {
+  const [visible, setVisible] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem("flux_banner_dismissed");
+    if (seen) { setVisible(false); setDismissed(true); }
+  }, []);
+
+  function dismiss() {
+    setVisible(false);
+    localStorage.setItem("flux_banner_dismissed", "true");
+    setTimeout(() => setDismissed(true), 400);
+  }
+
+  if (dismissed) return null;
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, left: 24, zIndex: 999,
+      maxWidth: 300, opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(12px)",
+      transition: "opacity .35s ease, transform .35s ease",
+      pointerEvents: visible ? "auto" : "none",
+    }}>
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${C.accent}`,
+        borderRadius: 6, padding: "12px 14px",
+        boxShadow: "0 4px 20px #00000050",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>🚧 EARLY ACCESS</div>
+            <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>
+              Flux is still being built. Things may shift, break, or get better without warning.
+            </div>
+            <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none", letterSpacing: .5 }}>
+              fluxteam@proton.me
+            </a>
+          </div>
+          <button onClick={dismiss} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0, lineHeight: 1,
+          }}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+  
   // ── Auth ─────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
