@@ -829,8 +829,84 @@ export default function App() {
   const [flash, setFlash]             = useState(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
+// ── Late Night Prompt ─────────────────────────────────────────────────
+function LateNightPrompt({ onChoose }) {
+  const now = new Date();
+  const hour = now.getHours();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
 
-// ── Early Access Banner ───────────────────────────────────────────────
+  const todayLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
+  const yesterdayLabel = yesterday.toLocaleDateString("en-US", { weekday: "long", month: "numeric", day: "numeric" });
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 300,
+      background: "#000000bb",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24, animation: "fadeIn .2s ease",
+    }}>
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 10, maxWidth: 380, width: "100%",
+        padding: "32px 28px",
+        boxShadow: "0 24px 80px #00000080",
+        animation: "slideUp .25s ease",
+      }}>
+        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 12 }}>
+          🌙 IT'S PAST MIDNIGHT
+        </div>
+        <div style={{
+          fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: 22, letterSpacing: 2, color: C.text, marginBottom: 8,
+        }}>
+          Which day is this for?
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.7, marginBottom: 28 }}>
+          Your day doesn't end at midnight — archive whenever you're actually done.
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => onChoose("yesterday")} style={{
+            background: C.accentDim, border: `1px solid ${C.accent}50`,
+            color: C.text, borderRadius: 6, padding: "14px 18px",
+            fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+            textAlign: "left", lineHeight: 1.5, transition: "all .15s",
+          }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = `${C.accent}50`}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 3 }}>
+              {yesterdayLabel} — still finishing up
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim }}>
+              keep today's date, archive when you're done
+            </div>
+          </button>
+
+          <button onClick={() => onChoose("today")} style={{
+            background: C.surface, border: `1px solid ${C.border}`,
+            color: C.text, borderRadius: 6, padding: "14px 18px",
+            fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+            textAlign: "left", lineHeight: 1.5, transition: "all .15s",
+          }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = C.textMid}
+            onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 3 }}>
+              {todayLabel} — starting fresh
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim }}>
+              roll any undone tasks and begin a new day
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+  // ── Early Access Banner ───────────────────────────────────────────────
 function EarlyAccessBanner() {
   const [visible, setVisible] = useState(true);
   const [dismissed, setDismissed] = useState(false);
