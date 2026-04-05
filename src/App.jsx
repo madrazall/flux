@@ -801,6 +801,43 @@ function AuthScreen() {
   );
 }
 
+// ── Print Page ────────────────────────────────────────────────────────
+function printDay(day, tags) {
+  const resolveT = (tagId) => tags.find(t => t.id === tagId) || { label: tagId, color: "#50505a", bg: "#161618" };
+  const MOODS_PRINT = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
+  const doneTasks = (day.tasks || []).filter(t => t.done);
+  const pendingTasks = (day.tasks || []).filter(t => !t.done);
+  const ROLLOVER_THRESHOLD = 3;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flux · ${day.date || day.key}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 5.5in; height: 8.5in; background: #fff; }
+  body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; color: #1a1a1a; overflow: hidden; }
+
+  .content { flex: 1; padding: 28px 22px 24px 26px; display: flex; flex-direction: column; gap: 0; }
+  .doodle { width: 108px; flex-shrink: 0; background: #fafafa; border-left: 1px solid #e0e0e0; position: relative; overflow: hidden; }
+  .doodle::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, #c8c8c8 0.8px, transparent 0.8px); background-size: 10px 10px; background-position: 5px 5px; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 10px; border-bottom: 2.5px solid #e8365d; margin-bottom: 14px; }
+  .flux-word { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px; color: #e8365d; line-height: 1; }
+  .sub { font-size: 7px; letter-spacing: 2px; color: #bbb; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 1px; }
+  .dow { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 2px; color: #1a1a1a; line-height: 1; text-align: right; }
+  .date-str { font-size: 9px; color: #999; margin-top: 1px; font-family: 'DM Mono', monospace; text-align: right; }
+
+  .energy-row { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+  .energy-lbl { font-size: 7px; letter-spacing: 2px; color: #aaa; text-transform: uppercase; font-family: 'DM Mono', monospace; min-width: 44px; }
+  .dots { display: flex; gap: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #ddd; }
+  .dot.on { background: #e8365d; border-color: #e8365d; }
+  .energy-val { font-size: 9px; color: #999; font-style: italic; }
+
+  .sec-label { font-size: 7px; letter-spacing: 2.5px; text-transform: uppercase; color: #e8365d; font-family: 'DM Mono', monospace; font-weight: 500; mar
 // ══════════════════════════════════════════════════════════════════════
 export default function App() {
   const [session, setSession]         = useState(null);
@@ -829,6 +866,33 @@ export default function App() {
   const [flash, setFlash]             = useState(null);
   const [dbLoading, setDbLoading]     = useState(false);
   const dragItem = useRef(null);
+
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      printDay(day, tags);
+    }}
+    style={{
+      background: "transparent",
+      color: C.textDim,
+      border: `1px solid ${C.border}`,
+      padding: "2px 6px",
+      borderRadius: 4,
+      fontSize: 10,
+      cursor: "pointer",
+    }}
+  >
+    print
+  </button>
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      if (window.confirm(`Are you sure you want to permanently delete...
 // ── Late Night Prompt ─────────────────────────────────────────────────
 function LateNightPrompt({ onChoose }) {
   const now = new Date();
