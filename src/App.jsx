@@ -53,6 +53,19 @@ const JOURNAL_TYPE_LABELS = {
   stuck: "stuck",
   follow_up: "follow up",
 };
+const JOURNAL_PROMPTS_DAY = [
+  "what happened that's worth remembering?",
+  "what got stuck?",
+  "what needs follow-up?",
+  "what helped?",
+  "what got finished?",
+];
+const JOURNAL_PROMPTS_EOD = [
+  "what should tomorrow start with?",
+  "what is still open?",
+  "anything worth carrying forward?",
+  "what mattered today?",
+];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 function today() { return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }); }
@@ -61,6 +74,24 @@ function nowStamp() {
   const d = new Date();
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+function pickPrompt(pool, key, entryCount, offset) {
+  if (!pool.length) return "";
+  const base = hashString(`${key}:${entryCount}`);
+  return pool[(base + offset) % pool.length];
+}
+function formatEntryTime(isoStamp) {
+  if (!isoStamp) return "";
+  const dt = new Date(isoStamp);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 function formatEventDate(dateStr) {
   const d = dateFromLocalKey(dateStr);
@@ -1138,7 +1169,7 @@ function AuthScreen() {
             { num: "01", title: "A schedule that moves with you", desc: "Visual time blocks sized by duration. Drag to move, drag the edge to resize. See your day at a glance." },
             { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
             { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag — use it enough and it becomes a tracked category." },
-            { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields. Archive the day and start fresh tomorrow." },
+            { num: "04", title: "End of day debrief", desc: "A compact day summary and one calm prompt for tomorrow. Extra reflection stays optional." },
             { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
             { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
           ].map(f => (
@@ -1188,13 +1219,14 @@ export default function App() {
   const [wins, setWins]                     = useState("");
   const [hard, setHard]                     = useState("");
   const [journalEntries, setJournalEntries] = useState([]);
-  const [journalType, setJournalType]       = useState("note");
   const [journalInput, setJournalInput]     = useState("");
+  const [journalPromptOffset, setJournalPromptOffset] = useState(0);
   const [journalSaving, setJournalSaving]   = useState(false);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
+  const currentDayKey = todayKey();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1217,6 +1249,10 @@ export default function App() {
       setShowLateNightPrompt(true);
     }
   }, [session, blocks, tasks, wins, hard, dayNote]);
+
+  useEffect(() => {
+    setJournalPromptOffset(0);
+  }, [currentDayKey]);
 
   function handleLateNightChoice(choice) {
     setShowLateNightPrompt(false);
@@ -1358,7 +1394,7 @@ export default function App() {
     const payload = {
       user_id: session.user.id,
       day_key: todayKey(),
-      type: journalType,
+      type: "note",
       text,
       pinned: false,
       archived: false,
@@ -1368,6 +1404,7 @@ export default function App() {
     if (!error && data) {
       setJournalEntries(sortJournalEntries([...journalEntries, data]));
       setJournalInput("");
+      setJournalPromptOffset(0);
     }
     setJournalSaving(false);
   }
@@ -1377,6 +1414,20 @@ export default function App() {
     const { data, error } = await supabase
       .from("journal_entries")
       .update({ pinned: nextPinned, updated_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("user_id", session.user.id)
+      .select("*")
+      .single();
+    if (!error && data) {
+      setJournalEntries(sortJournalEntries(journalEntries.map(e => e.id === entryId ? data : e)));
+    }
+  }
+
+  async function setJournalEntryType(entryId, nextType) {
+    if (!session) return;
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .update({ type: nextType, updated_at: new Date().toISOString() })
       .eq("id", entryId)
       .eq("user_id", session.user.id)
       .select("*")
@@ -1420,6 +1471,12 @@ export default function App() {
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
   const todayJournalEntries = sortJournalEntries(journalEntries.filter(e => !e.deleted_at));
+  const isEndOfDay = new Date().getHours() >= 17;
+  const journalPromptPool = isEndOfDay ? JOURNAL_PROMPTS_EOD : JOURNAL_PROMPTS_DAY;
+  const journalPrompt = pickPrompt(journalPromptPool, todayKey(), todayJournalEntries.length, journalPromptOffset);
+  const completedTasksCount = tasks.filter(t => t.done).length;
+  const carryoversCount = tasks.filter(t => !t.done).length;
+  const followUpOrStuckCount = todayJournalEntries.filter(e => e.type === "follow_up" || e.type === "stuck").length;
 
   if (showResetForm) {
     return (
@@ -1535,21 +1592,23 @@ export default function App() {
 
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginTop: 14, marginBottom: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>JOURNAL</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <select
-                value={journalType}
-                onChange={e => setJournalType(e.target.value)}
-                style={{ background: C.card, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "8px 10px", fontSize: 12, fontFamily: "inherit" }}
-              >
-                {JOURNAL_TYPES.map(t => <option key={t} value={t}>{JOURNAL_TYPE_LABELS[t]}</option>)}
-              </select>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8 }}>
+              {journalPrompt}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <input
                 value={journalInput}
                 onChange={e => setJournalInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && addJournalEntry()}
-                placeholder="add a journal entry..."
+                placeholder={journalPrompt}
                 style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }}
               />
+              <button
+                onClick={() => setJournalPromptOffset(n => n + 1)}
+                style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "8px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                prompt
+              </button>
               <button
                 onClick={addJournalEntry}
                 disabled={journalSaving || !journalInput.trim()}
@@ -1560,40 +1619,90 @@ export default function App() {
             </div>
             {todayJournalEntries.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>no journal entries yet</div>}
             {todayJournalEntries.map(entry => (
-              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "7px 8px", marginBottom: 5 }}>
-                <span style={{ fontSize: 10, color: C.textDim, minWidth: 62 }}>{JOURNAL_TYPE_LABELS[entry.type] || entry.type}</span>
-                <span style={{ flex: 1, fontSize: 12, color: C.text }}>{entry.text}</span>
-                <button
-                  onClick={() => toggleJournalPinned(entry.id, !entry.pinned)}
-                  style={{ background: "none", border: "none", color: entry.pinned ? C.accent : C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
-                >
-                  {entry.pinned ? "pinned" : "pin"}
-                </button>
-                <button
-                  onClick={() => softDeleteJournalEntry(entry.id)}
-                  style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
-                >
-                  remove
-                </button>
+              <div key={entry.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 9px", marginBottom: 6 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 10, color: C.textDim, minWidth: 52, marginTop: 1 }}>{formatEntryTime(entry.created_at)}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 6 }}>{entry.text}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      {JOURNAL_TYPES.map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setJournalEntryType(entry.id, type)}
+                          style={{
+                            background: entry.type === type ? C.accentDim : "none",
+                            border: entry.type === type ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                            color: entry.type === type ? C.accent : C.textDim,
+                            borderRadius: 999,
+                            padding: "2px 7px",
+                            fontSize: 10,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {JOURNAL_TYPE_LABELS[type]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 1 }}>
+                    <button
+                      onClick={() => toggleJournalPinned(entry.id, !entry.pinned)}
+                      style={{ background: "none", border: "none", color: entry.pinned ? C.accent : C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
+                    >
+                      {entry.pinned ? "pinned" : "pin"}
+                    </button>
+                    <button
+                      onClick={() => softDeleteJournalEntry(entry.id)}
+                      style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
+                    >
+                      remove
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
 
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 15 }}>END OF DAY DEBRIEF</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[
-                { label: "WINS — what actually worked", val: wins, set: setWins, ph: "even tiny ones count..." },
-                { label: "HARD STUFF — what derailed you", val: hard, set: setHard, ph: "no judgment, just data..." },
-                { label: "FREE NOTE — brain dump", val: dayNote, set: setDayNote, ph: "whatever's still bouncing around...", tall: true },
-              ].map(f => (
-                <div key={f.label}>
-                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>{f.label}</label>
-                  <textarea value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, padding: "10px 12px", resize: "none", minHeight: f.tall ? 84 : 64, outline: "none", lineHeight: 1.6 }} />
-                </div>
-              ))}
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>DEBRIEF</div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "9px 10px", marginBottom: 12, fontSize: 11, color: C.textMid, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <span>{completedTasksCount} completed</span>
+              <span>{carryoversCount} open</span>
+              <span>{followUpOrStuckCount} follow-up/stuck</span>
             </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WHAT SHOULD TOMORROW START WITH?</label>
+              <textarea
+                value={dayNote}
+                onChange={e => setDayNote(e.target.value)}
+                placeholder="one clear starting point is enough..."
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, padding: "10px 12px", resize: "none", minHeight: 70, outline: "none", lineHeight: 1.6 }}
+              />
+            </div>
+            <details style={{ marginBottom: 4 }}>
+              <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", marginBottom: 8 }}>more reflection (optional)</summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                <div>
+                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WINS</label>
+                  <textarea
+                    value={wins}
+                    onChange={e => setWins(e.target.value)}
+                    placeholder="even tiny ones count..."
+                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 11px", resize: "none", minHeight: 58, outline: "none", lineHeight: 1.6 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>STUCK POINTS</label>
+                  <textarea
+                    value={hard}
+                    onChange={e => setHard(e.target.value)}
+                    placeholder="what got in the way?"
+                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 11px", resize: "none", minHeight: 58, outline: "none", lineHeight: 1.6 }}
+                  />
+                </div>
+              </div>
+            </details>
             <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
               <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save draft</button>
               <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive day →</button>
