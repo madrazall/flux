@@ -23,6 +23,7 @@ Get your personal Flux app live in about 15 minutes.
 4. Open **SQL Editor** and create a **New query**.
 5. Paste all of `schema.sql`.
 6. Click **Run**.
+7. Run SQL files in `migrations/` that are newer than your environment (for current production parity, run `migrations/20260409_create_journal_entries.sql`).
 
 ### Get your Supabase keys
 7. Open **Project Settings -> API**.
@@ -75,7 +76,7 @@ Get your personal Flux app live in about 15 minutes.
 
 - **Today tab**: schedule blocks, task drawer, upcoming events, and journal fields.
 - **Calendar tab**: add future events that surface in Upcoming when relevant.
-- **Save draft**: save current state without archiving.
+- **Save debrief**: save debrief fields without archiving.
 - **Archive day ->**: lock the day, clear done tasks, roll unfinished tasks forward.
 - **Patterns tab**: unlocks after 3 archived days.
 
