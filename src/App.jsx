@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import HelpSystem from './HelpSystem.jsx';
 import { createClient } from "@supabase/supabase-js";
+import {
+  localDateKey,
+  dateFromLocalKey,
+  shouldShowLateNightPrompt,
+  computeStaleEventRowIds,
+  resolveSavedEvents,
+  sortJournalEntries,
+} from "./utils/appLogic";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -38,16 +46,15 @@ const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 
 const MOODS = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
 
+const JOURNAL_TYPES = ["note", "done", "stuck", "follow_up"];
+const JOURNAL_TYPE_LABELS = {
+  note: "note",
+  done: "done",
+  stuck: "stuck",
+  follow_up: "follow up",
+};
+
 function genId() { return Math.random().toString(36).slice(2, 9); }
-function localDateKey(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-function dateFromLocalKey(dateKey) {
-  return new Date(`${dateKey}T00:00:00`);
-}
 function today() { return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }); }
 function todayKey() { return localDateKey(); }
 function nowStamp() {
@@ -112,9 +119,6 @@ function pxToMinutes(px) {
   return px / PIXELS_PER_MINUTE;
 }
 
-function offsetToMinutes(offsetPx) {
-  return snapToGrid(DAY_START_HOUR * 60 + pxToMinutes(offsetPx));
-}
 
 // ── Column layout for overlapping blocks ──────────────────────────────
 function computeColumns(blocks) {
@@ -1183,6 +1187,10 @@ export default function App() {
   const [dayNote, setDayNote]               = useState("");
   const [wins, setWins]                     = useState("");
   const [hard, setHard]                     = useState("");
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [journalType, setJournalType]       = useState("note");
+  const [journalInput, setJournalInput]     = useState("");
+  const [journalSaving, setJournalSaving]   = useState(false);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
@@ -1201,11 +1209,13 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     const hour = new Date().getHours();
-    if (hour < 0 || hour > 4) return;
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
     const yk = localDateKey(yesterday);
-    if (localStorage.getItem("flux_latenight_" + yk)) return;
-    if (blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote) { setLateNightKey(yk); setShowLateNightPrompt(true); }
+    const hasPromptedForYesterday = Boolean(localStorage.getItem("flux_latenight_" + yk));
+    if (shouldShowLateNightPrompt({ session, hour, blocks, tasks, wins, hard, dayNote, hasPromptedForYesterday })) {
+      setLateNightKey(yk);
+      setShowLateNightPrompt(true);
+    }
   }, [session, blocks, tasks, wins, hard, dayNote]);
 
   function handleLateNightChoice(choice) {
@@ -1218,22 +1228,16 @@ export default function App() {
     }
   }
 
-  useEffect(() => { if (!session) return; loadData(); }, [session]);
-
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!session) return;
-    const timer = setTimeout(() => { saveToday(false); }, 1000);
-    return () => clearTimeout(timer);
-  }, [blocks, tasks, mood, dayNote, wins, hard, tags]);
-
-  async function loadData() {
     setDbLoading(true);
     const uid = session.user.id;
     try {
-      const [{ data: userData }, { data: archiveData }, { data: eventsData }] = await Promise.all([
+      const [{ data: userData }, { data: archiveData }, { data: eventsData }, { data: journalData }] = await Promise.all([
         supabase.from("user_data").select("*").eq("user_id", uid).single(),
         supabase.from("archive").select("*").eq("user_id", uid),
         supabase.from("events").select("*").eq("user_id", uid),
+        supabase.from("journal_entries").select("*").eq("user_id", uid).eq("day_key", todayKey()).is("deleted_at", null),
       ]);
       if (userData) {
         if (userData.tags) setTags(userData.tags);
@@ -1257,16 +1261,25 @@ export default function App() {
         setArchive(archiveObj);
       }
       if (eventsData) setEvents(eventsData.map(e => e.data));
+      if (journalData) setJournalEntries(sortJournalEntries(journalData));
     } catch (e) { console.error("load error", e); }
     setDbLoading(false);
-  }
+  }, [session]);
 
-  async function saveToday(quiet = false) {
+  const saveToday = useCallback(async (quiet = false) => {
     if (!session) return;
     const uid = session.user.id;
     await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags }, { onConflict: "user_id" });
     if (!quiet) { setFlash("saved"); setTimeout(() => setFlash(null), 1600); }
-  }
+  }, [session, blocks, tasks, mood, dayNote, wins, hard, tags]);
+
+  useEffect(() => { if (!session) return; loadData(); }, [session, loadData]);
+
+  useEffect(() => {
+    if (!session) return;
+    const timer = setTimeout(() => { saveToday(false); }, 1000);
+    return () => clearTimeout(timer);
+  }, [session, saveToday]);
 
   async function archiveDay() {
     if (!session) return;
@@ -1274,7 +1287,8 @@ export default function App() {
     let updatedTags = [...tags];
     blocks.forEach(b => { if (b.tag) updatedTags = bumpTagUse(b.tag, updatedTags); });
     setTags(updatedTags);
-    const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, date: today(), key: todayKey() };
+    const activeJournalEntries = sortJournalEntries(journalEntries.filter(e => !e.deleted_at));
+    const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, journal_entries: activeJournalEntries, date: today(), key: todayKey() };
     await Promise.all([
       supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
       supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks }, { onConflict: "user_id" }),
@@ -1321,10 +1335,7 @@ export default function App() {
         }
       }
 
-      const nextEventIds = new Set(newEvents.map(e => e.id));
-      const staleRowIds = (existingRows || [])
-        .filter(row => !nextEventIds.has(row.event_id))
-        .map(row => row.id);
+      const staleRowIds = computeStaleEventRowIds(existingRows || [], newEvents);
 
       if (staleRowIds.length > 0) {
         const { error: deleteError } = await supabase
@@ -1335,8 +1346,55 @@ export default function App() {
         if (deleteError) throw deleteError;
       }
     } catch (error) {
-      setEvents(previousEvents);
+      setEvents(resolveSavedEvents(previousEvents, newEvents, true));
       console.error("save events error", error);
+    }
+  }
+
+  async function addJournalEntry() {
+    const text = journalInput.trim();
+    if (!session || !text || journalSaving) return;
+    setJournalSaving(true);
+    const payload = {
+      user_id: session.user.id,
+      day_key: todayKey(),
+      type: journalType,
+      text,
+      pinned: false,
+      archived: false,
+      source: "manual",
+    };
+    const { data, error } = await supabase.from("journal_entries").insert(payload).select("*").single();
+    if (!error && data) {
+      setJournalEntries(sortJournalEntries([...journalEntries, data]));
+      setJournalInput("");
+    }
+    setJournalSaving(false);
+  }
+
+  async function toggleJournalPinned(entryId, nextPinned) {
+    if (!session) return;
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .update({ pinned: nextPinned, updated_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("user_id", session.user.id)
+      .select("*")
+      .single();
+    if (!error && data) {
+      setJournalEntries(sortJournalEntries(journalEntries.map(e => e.id === entryId ? data : e)));
+    }
+  }
+
+  async function softDeleteJournalEntry(entryId) {
+    if (!session) return;
+    const { error } = await supabase
+      .from("journal_entries")
+      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("user_id", session.user.id);
+    if (!error) {
+      setJournalEntries(journalEntries.filter(e => e.id !== entryId));
     }
   }
 
@@ -1361,6 +1419,7 @@ export default function App() {
   const archiveCount = Object.keys(archive).length;
   const patterns = computePatterns(archive, tags);
   const promotedTags = tags.filter(t => t.pinned || (t.uses || 0) >= PROMOTE_THRESHOLD);
+  const todayJournalEntries = sortJournalEntries(journalEntries.filter(e => !e.deleted_at));
 
   if (showResetForm) {
     return (
@@ -1474,6 +1533,52 @@ export default function App() {
           <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
           <UpcomingDrawer events={events} />
 
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginTop: 14, marginBottom: 20 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>JOURNAL</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <select
+                value={journalType}
+                onChange={e => setJournalType(e.target.value)}
+                style={{ background: C.card, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "8px 10px", fontSize: 12, fontFamily: "inherit" }}
+              >
+                {JOURNAL_TYPES.map(t => <option key={t} value={t}>{JOURNAL_TYPE_LABELS[t]}</option>)}
+              </select>
+              <input
+                value={journalInput}
+                onChange={e => setJournalInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addJournalEntry()}
+                placeholder="add a journal entry..."
+                style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }}
+              />
+              <button
+                onClick={addJournalEntry}
+                disabled={journalSaving || !journalInput.trim()}
+                style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "8px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: journalSaving || !journalInput.trim() ? 0.55 : 1 }}
+              >
+                add
+              </button>
+            </div>
+            {todayJournalEntries.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>no journal entries yet</div>}
+            {todayJournalEntries.map(entry => (
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "7px 8px", marginBottom: 5 }}>
+                <span style={{ fontSize: 10, color: C.textDim, minWidth: 62 }}>{JOURNAL_TYPE_LABELS[entry.type] || entry.type}</span>
+                <span style={{ flex: 1, fontSize: 12, color: C.text }}>{entry.text}</span>
+                <button
+                  onClick={() => toggleJournalPinned(entry.id, !entry.pinned)}
+                  style={{ background: "none", border: "none", color: entry.pinned ? C.accent : C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
+                >
+                  {entry.pinned ? "pinned" : "pin"}
+                </button>
+                <button
+                  onClick={() => softDeleteJournalEntry(entry.id)}
+                  style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
+                >
+                  remove
+                </button>
+              </div>
+            ))}
+          </div>
+
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 15 }}>END OF DAY DEBRIEF</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1564,6 +1669,17 @@ export default function App() {
                           </div>)}
                         </div>
                       )}
+                      {day.journal_entries?.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 7 }}>JOURNAL</div>
+                          {sortJournalEntries(day.journal_entries).map(j => (
+                            <div key={j.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                              <span style={{ fontSize: 10, color: C.textDim, minWidth: 60 }}>{JOURNAL_TYPE_LABELS[j.type] || j.type}</span>
+                              <span style={{ fontSize: 12, color: C.text }}>{j.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {day.wins && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>WINS</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.wins}</div></div>}
                       {day.hard && <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>HARD STUFF</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.hard}</div></div>}
                       {day.day_note && <div><div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 3 }}>NOTES</div><div style={{ fontSize: 12, lineHeight: 1.6 }}>{day.day_note}</div></div>}
@@ -1649,3 +1765,4 @@ export default function App() {
     </div>
   );
 }
+
