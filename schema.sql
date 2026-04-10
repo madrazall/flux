@@ -31,7 +31,8 @@ create table if not exists events (
   user_id uuid references auth.users(id) on delete cascade not null,
   event_id text not null,
   data jsonb not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique(user_id, event_id)
 );
 
 -- Row Level Security (locks data to each user)

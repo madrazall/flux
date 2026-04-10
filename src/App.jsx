@@ -39,15 +39,24 @@ const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 const MOODS = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
+function localDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function dateFromLocalKey(dateKey) {
+  return new Date(`${dateKey}T00:00:00`);
+}
 function today() { return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }); }
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+function todayKey() { return localDateKey(); }
 function nowStamp() {
   const d = new Date();
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 function formatEventDate(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
+  const d = dateFromLocalKey(dateStr);
   const t = new Date(); t.setHours(0,0,0,0);
   const diff = Math.round((d - t) / 86400000);
   if (diff === 0) return "today";
@@ -58,6 +67,17 @@ function formatEventDate(dateStr) {
 }
 function isToday(dateStr) { return dateStr === todayKey(); }
 function isFuture(dateStr) { return dateStr >= todayKey(); }
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+function escapeHtmlWithBreaks(value) {
+  return escapeHtml(value).replace(/\r?\n/g, "<br>");
+}
 
 // ── Time math ─────────────────────────────────────────────────────────
 function timeToMinutes(timeStr) {
@@ -184,7 +204,7 @@ function computePatterns(archive, tags) {
   const byDow = {};
   days.forEach(d => {
     if (!d.key) return;
-    const dow = new Date(d.key).toLocaleDateString("en-US", { weekday: "short" });
+    const dow = dateFromLocalKey(d.key).toLocaleDateString("en-US", { weekday: "short" });
     if (!byDow[dow]) byDow[dow] = [];
     byDow[dow].push(d.mood ?? 2);
   });
@@ -195,7 +215,7 @@ function computePatterns(archive, tags) {
   const totalBlocks = tagDist.reduce((s, [, n]) => s + n, 0) || 1;
   let streak = 0, checkDate = new Date();
   for (let i = 0; i < 60; i++) {
-    const k = checkDate.toISOString().slice(0, 10);
+    const k = localDateKey(checkDate);
     if (archive[k]) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
     else if (i === 0) { checkDate.setDate(checkDate.getDate() - 1); }
     else break;
@@ -277,8 +297,8 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
   <div class="page-header">
     <div><div class="flux-word">FLUX</div><div class="sub">daily log</div></div>
     <div>
-      <div class="dow">${new Date((day.key || todayKey()) + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })}</div>
-      <div class="date-str">${day.date || day.key}</div>
+      <div class="dow">${dateFromLocalKey(day.key || todayKey()).toLocaleDateString("en-US", { weekday: "long" })}</div>
+      <div class="date-str">${escapeHtml(day.date || day.key)}</div>
     </div>
   </div>
   <div class="energy-row">
@@ -293,13 +313,13 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
       const dur = b.duration || DEFAULT_DURATION;
       const durStr = dur >= 60 ? `${Math.floor(dur/60)}h${dur%60 ? dur%60+"m" : ""}` : `${dur}m`;
       return `<div class="block-row">
-        <div class="b-time">${b.time}</div>
-        <div class="b-dur">${durStr}</div>
+        <div class="b-time">${escapeHtml(b.time)}</div>
+        <div class="b-dur">${escapeHtml(durStr)}</div>
         <div class="b-dot" style="background:${t.color}"></div>
         <div>
-          <div class="b-label">${b.label}</div>
-          <div class="b-tag">${t.label}</div>
-          ${b.note ? `<div class="b-note">${b.note}</div>` : ""}
+          <div class="b-label">${escapeHtml(b.label)}</div>
+          <div class="b-tag">${escapeHtml(t.label)}</div>
+          ${b.note ? `<div class="b-note">${escapeHtmlWithBreaks(b.note)}</div>` : ""}
         </div>
       </div>`;
     }).join("")}
@@ -307,18 +327,18 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
   ${(day.tasks || []).length > 0 ? `
   <div class="tasks">
     <div class="sec-label">Tasks</div>
-    ${doneTasks.map(t => `<div class="task-row"><div class="cb done">✓</div><div class="t-label crossed">${t.label}</div><div class="t-done-time">${t.doneAt || ""}</div></div>`).join("")}
+    ${doneTasks.map(t => `<div class="task-row"><div class="cb done">✓</div><div class="t-label crossed">${escapeHtml(t.label)}</div><div class="t-done-time">${escapeHtml(t.doneAt || "")}</div></div>`).join("")}
     ${pendingTasks.map(t => {
       const rolledCount = (t.addedAt || "").split("(rolled)").length - 1;
-      return `<div class="task-row"><div class="cb"></div><div class="t-label">${t.label}${rolledCount >= ROLLOVER_THRESHOLD ? '<span class="rolled">*</span>' : ""}</div></div>`;
+      return `<div class="task-row"><div class="cb"></div><div class="t-label">${escapeHtml(t.label)}${rolledCount >= ROLLOVER_THRESHOLD ? '<span class="rolled">*</span>' : ""}</div></div>`;
     }).join("")}
   </div>` : ""}
-  ${day.wins ? `<div class="journal"><div class="sec-label">Wins</div><div class="j-content">${day.wins}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Wins</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
-  ${day.hard ? `<div class="journal"><div class="sec-label">Hard stuff</div><div class="j-content">${day.hard}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Hard stuff</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
+  ${day.wins ? `<div class="journal"><div class="sec-label">Wins</div><div class="j-content">${escapeHtmlWithBreaks(day.wins)}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Wins</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
+  ${day.hard ? `<div class="journal"><div class="sec-label">Hard stuff</div><div class="j-content">${escapeHtmlWithBreaks(day.hard)}</div><div class="wline"></div><div class="wline"></div></div>` : `<div class="journal"><div class="sec-label">Hard stuff</div><div class="wline"></div><div class="wline"></div><div class="wline"></div></div>`}
   <div class="page-footer">
     <div class="f-flux">FLUX</div>
     <div class="f-note">* rolled 3+ days</div>
-    <div class="f-id">${day.key || ""}</div>
+    <div class="f-id">${escapeHtml(day.key || "")}</div>
   </div>
 </div>
 <div class="doodle">
@@ -890,7 +910,7 @@ function UpcomingDrawer({ events }) {
   const todayEvents = upcoming.filter(e => isToday(e.date));
   const futureEvents = upcoming.filter(e => !isToday(e.date)).slice(0, 5);
   const next = upcoming.find(e => !isToday(e.date));
-  const thisWeek = upcoming.filter(e => { const diff = Math.round((new Date(e.date + "T00:00:00") - new Date()) / 86400000); return diff > 0 && diff <= 7; }).length;
+  const thisWeek = upcoming.filter(e => { const diff = Math.round((dateFromLocalKey(e.date) - new Date()) / 86400000); return diff > 0 && diff <= 7; }).length;
   return (
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
@@ -946,7 +966,7 @@ function CalendarView({ events, onEventsChange }) {
   }
   function deleteEvent(id) { onEventsChange(events.filter(e => e.id !== id)); }
   const grouped = present.reduce((acc, e) => {
-    const month = new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const month = dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
     if (!acc[month]) acc[month] = []; acc[month].push(e); return acc;
   }, {});
   return (
@@ -979,7 +999,7 @@ function CalendarView({ events, onEventsChange }) {
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {evs.map(e => {
-              const d = new Date(e.date + "T00:00:00"); const isItToday = isToday(e.date);
+              const d = dateFromLocalKey(e.date); const isItToday = isToday(e.date);
               return <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
                 <div style={{ textAlign: "center", minWidth: 32 }}>
                   <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
@@ -1002,7 +1022,7 @@ function CalendarView({ events, onEventsChange }) {
         <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
           {past.reverse().map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
-            <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
             <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{e.title}</span>
           </div>)}
         </div>
@@ -1025,14 +1045,14 @@ function AuthScreen() {
       if (mode === "signup") {
         const { error: e } = await supabase.auth.signUp({ email, password });
         if (e) setError(e.message);
-        else { setSuccessMsg("Account created! Check your email to confirm."); setTimeout(() => { setMode("signin"); setPassword(""); setEmail(""); }, 2000); }
+        else { setSuccessMsg("Account created. You can sign in now with your email and password."); setTimeout(() => { setMode("signin"); setPassword(""); }, 2000); }
       } else if (mode === "signin") {
         const { error: e } = await supabase.auth.signInWithPassword({ email, password });
         if (e) setError(e.message);
       } else if (mode === "forgot") {
         const { error: e } = await supabase.auth.resetPasswordForEmail(email);
         if (e) setError(e.message);
-        else { setSuccessMsg("Reset link sent to your email"); setEmail(""); }
+        else { setSuccessMsg("Password reset link sent to your email."); setEmail(""); }
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
@@ -1066,6 +1086,9 @@ function AuthScreen() {
           <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 16 }}>
             {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
           </div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 10 }}>
+            {mode === "forgot" ? "Enter your account email to reset your password." : "Use your email and password. No magic link required."}
+          </div>
           {mode === "forgot" ? (
             <div style={{ marginBottom: 16 }}>
               <input type="email" placeholder="your email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
@@ -1084,11 +1107,11 @@ function AuthScreen() {
           {successMsg && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: 10, background: "#001f00", borderRadius: 4, textAlign: "center" }}>{successMsg}</div>}
           <button onClick={handleAuth} disabled={loading || !email || (mode !== "forgot" && !password)}
             style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8 }}>
-            {loading ? "loading..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+            {loading ? "loading..." : mode === "signin" ? "Sign In With Password" : mode === "signup" ? "Create Account" : "Send Reset Link"}
           </button>
           {mode !== "forgot" && <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }} disabled={loading}
             style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
-            {mode === "signin" ? "Create Account" : "Back to Sign In"}
+            {mode === "signin" ? "First time? Create Account" : "Back to Sign In"}
           </button>}
           {mode === "signin" && <button onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }} disabled={loading}
             style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -1180,10 +1203,10 @@ export default function App() {
     const hour = new Date().getHours();
     if (hour < 0 || hour > 4) return;
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yk = yesterday.toISOString().slice(0, 10);
+    const yk = localDateKey(yesterday);
     if (localStorage.getItem("flux_latenight_" + yk)) return;
     if (blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote) { setLateNightKey(yk); setShowLateNightPrompt(true); }
-  }, [session, blocks]);
+  }, [session, blocks, tasks, wins, hard, dayNote]);
 
   function handleLateNightChoice(choice) {
     setShowLateNightPrompt(false);
@@ -1269,11 +1292,52 @@ export default function App() {
   }
 
   async function saveEvents(newEvents) {
-    setEvents(newEvents);
     if (!session) return;
     const uid = session.user.id;
-    await supabase.from("events").delete().eq("user_id", uid);
-    if (newEvents.length > 0) await supabase.from("events").insert(newEvents.map(e => ({ user_id: uid, event_id: e.id, data: e })));
+    const previousEvents = events;
+    setEvents(newEvents);
+    try {
+      const { data: existingRows, error: selectError } = await supabase
+        .from("events")
+        .select("id,event_id")
+        .eq("user_id", uid);
+      if (selectError) throw selectError;
+
+      const existingByEventId = new Map((existingRows || []).map(row => [row.event_id, row]));
+      for (const eventItem of newEvents) {
+        const existing = existingByEventId.get(eventItem.id);
+        if (existing) {
+          const { error: updateError } = await supabase
+            .from("events")
+            .update({ data: eventItem })
+            .eq("id", existing.id)
+            .eq("user_id", uid);
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from("events")
+            .insert({ user_id: uid, event_id: eventItem.id, data: eventItem });
+          if (insertError) throw insertError;
+        }
+      }
+
+      const nextEventIds = new Set(newEvents.map(e => e.id));
+      const staleRowIds = (existingRows || [])
+        .filter(row => !nextEventIds.has(row.event_id))
+        .map(row => row.id);
+
+      if (staleRowIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("events")
+          .delete()
+          .eq("user_id", uid)
+          .in("id", staleRowIds);
+        if (deleteError) throw deleteError;
+      }
+    } catch (error) {
+      setEvents(previousEvents);
+      console.error("save events error", error);
+    }
   }
 
   async function persistTags(t) {
