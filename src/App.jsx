@@ -1222,6 +1222,7 @@ export default function App() {
   const [journalInput, setJournalInput]     = useState("");
   const [journalPromptOffset, setJournalPromptOffset] = useState(0);
   const [journalSaving, setJournalSaving]   = useState(false);
+  const [journalFeedback, setJournalFeedback] = useState(null);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
@@ -1253,6 +1254,12 @@ export default function App() {
   useEffect(() => {
     setJournalPromptOffset(0);
   }, [currentDayKey]);
+
+  useEffect(() => {
+    if (!journalFeedback) return undefined;
+    const timer = setTimeout(() => setJournalFeedback(null), 1800);
+    return () => clearTimeout(timer);
+  }, [journalFeedback]);
 
   function handleLateNightChoice(choice) {
     setShowLateNightPrompt(false);
@@ -1391,6 +1398,7 @@ export default function App() {
     const text = journalInput.trim();
     if (!session || !text || journalSaving) return;
     setJournalSaving(true);
+    setJournalFeedback(null);
     const payload = {
       user_id: session.user.id,
       day_key: todayKey(),
@@ -1405,6 +1413,10 @@ export default function App() {
       setJournalEntries(sortJournalEntries([...journalEntries, data]));
       setJournalInput("");
       setJournalPromptOffset(0);
+      setJournalFeedback({ type: "ok", message: "journal saved" });
+    } else {
+      setJournalFeedback({ type: "err", message: "couldn't save journal entry" });
+      console.error("journal save error", error);
     }
     setJournalSaving(false);
   }
@@ -1614,9 +1626,14 @@ export default function App() {
                 disabled={journalSaving || !journalInput.trim()}
                 style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "8px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: journalSaving || !journalInput.trim() ? 0.55 : 1 }}
               >
-                add
+                {journalSaving ? "saving..." : "add"}
               </button>
             </div>
+            {journalFeedback && (
+              <div style={{ fontSize: 11, marginBottom: 8, color: journalFeedback.type === "ok" ? "#10b981" : "#ef4444" }}>
+                {journalFeedback.message}
+              </div>
+            )}
             {todayJournalEntries.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>no journal entries yet</div>}
             {todayJournalEntries.map(entry => (
               <div key={entry.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 9px", marginBottom: 6 }}>
@@ -1704,7 +1721,7 @@ export default function App() {
               </div>
             </details>
             <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
-              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save draft</button>
+              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
               <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive day →</button>
             </div>
           </div>
