@@ -1297,7 +1297,12 @@ export default function App() {
           const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
           const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
           setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
-          setBlocks(makeDefaults()); setMood(2); setDayNote(""); setWins(""); setHard("");
+          if (!userData.has_seen_demo) {
+  setBlocks(makeDefaults());
+} else {
+  setBlocks([]);
+}
+setMood(2); setDayNote(""); setWins(""); setHard("");
         }
       }
       if (archiveData) {
@@ -1597,9 +1602,12 @@ export default function App() {
           <VisualTimeline
             blocks={blocks}
          onBlocksChange={(newBlocksOrUpdater) => {
-  const isAddingFirstBlock = !hasSeenDemo && blocks.length === 0;
+  // Dismiss demo on ANY block interaction (add, edit, delete) if not already dismissed
+  const shouldDismissDemo = !hasSeenDemo;
+  
   setBlocks(newBlocksOrUpdater);
-  if (isAddingFirstBlock) {
+  
+  if (shouldDismissDemo) {
     const uid = session?.user?.id;
     if (uid) {
       supabase.from('user_data').update({ has_seen_demo: true }).eq('user_id', uid);
