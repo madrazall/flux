@@ -1228,6 +1228,7 @@ export default function App() {
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
   const currentDayKey = todayKey();
+  const [hasSeenDemo, setHasSeenDemo] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1291,6 +1292,7 @@ export default function App() {
           if (userData.day_note) setDayNote(userData.day_note);
           if (userData.wins) setWins(userData.wins);
           if (userData.hard) setHard(userData.hard);
+          if (userData.has_seen_demo !== undefined) setHasSeenDemo(userData.has_seen_demo);
         } else {
           const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
           const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
@@ -1594,7 +1596,17 @@ export default function App() {
           {/* Visual Timeline */}
           <VisualTimeline
             blocks={blocks}
-            onBlocksChange={setBlocks}
+         onBlocksChange={(newBlocksOrUpdater) => {
+  const isAddingFirstBlock = !hasSeenDemo && blocks.length === 0;
+  setBlocks(newBlocksOrUpdater);
+  if (isAddingFirstBlock) {
+    const uid = session?.user?.id;
+    if (uid) {
+      supabase.from('user_data').update({ has_seen_demo: true }).eq('user_id', uid);
+      setHasSeenDemo(true);
+    }
+  }
+}}
             tags={tags}
             onPersistTags={persistTags}
           />
