@@ -36,10 +36,17 @@ const SEED_TAGS = [
   { id: "human stuff", label: "human stuff", ...TAG_PALETTE[3], pinned: true },
 ];
 
+// ── CHANGE 4: Shift calendar job constants ────────────────────────────
+const SHIFT_JOBS = [
+  { id: "toce",       label: "TOCE Performance",      color: "#e8365d", bg: "#3d1220", auto: true },
+  { id: "riverhouse", label: "Riverhouse Catering",   color: "#38bdf8", bg: "#0c2233", auto: false },
+  { id: "strykers",   label: "Strykers Sports Cafe",  color: "#10b981", bg: "#0d2e22", auto: false },
+];
+
 const PROMOTE_THRESHOLD = 3;
 const SNAP_MINUTES = 5;
 const DEFAULT_DURATION = 30;
-const PIXELS_PER_MINUTE = 1.2; // timeline density
+const PIXELS_PER_MINUTE = 1.2;
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 23;
 const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
@@ -176,14 +183,12 @@ function computeColumns(blocks) {
     }
   }
 
-  // figure out how many columns each block spans
   const blockWidths = {};
   for (const block of sorted) {
     const start = timeToMinutes(block.time);
     const end = start + (block.duration || DEFAULT_DURATION);
     const col = blockCols[block.id];
     let maxCol = col;
-    // check what other blocks overlap with this one
     for (const other of sorted) {
       if (other.id === block.id) continue;
       const oStart = timeToMinutes(other.time);
@@ -214,15 +219,9 @@ function getOrCreateTag(label, tags) {
 function bumpTagUse(tagId, tags) {
   return tags.map(t => t.id !== tagId ? t : { ...t, uses: (t.uses || 0) + 1 });
 }
-function makeDefaults() {
-  return [
-    { id: genId(), tag: "work",        label: "morning check-in", time: "8:00am",  duration: 30,  note: "" },
-    { id: genId(), tag: "personal",    label: "slow start",       time: "8:30am",  duration: 60,  note: "" },
-    { id: genId(), tag: "work",        label: "deep work",        time: "10:00am", duration: 90,  note: "" },
-    { id: genId(), tag: "personal",    label: "reset",            time: "12:00pm", duration: 30,  note: "" },
-    { id: genId(), tag: "surviving",   label: "admin catch-up",   time: "2:00pm",  duration: 60,  note: "" },
-  ];
-}
+
+// ── CHANGE 3: makeDefaults removed — blocks always start empty ────────
+// Demo blocks are gone. New days start with [].
 
 // ── Pattern helpers ───────────────────────────────────────────────────
 const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","went","felt","really","very","like","time","day","today","some","more","too","been","then","also","into"]);
@@ -493,7 +492,7 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   const [resizingId, setResizingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
-  const [addingAt, setAddingAt] = useState(null); // minutes offset where user clicked
+  const [addingAt, setAddingAt] = useState(null);
   const [newLabel, setNewLabel] = useState("");
   const [newTag, setNewTag] = useState("work");
   const dragStartY = useRef(0);
@@ -504,7 +503,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   const timelineHeight = minutesToPx(TOTAL_MINUTES);
   const colLayout = computeColumns(blocks);
 
-  // hour markers
   const hourMarkers = [];
   for (let h = DAY_START_HOUR; h <= DAY_END_HOUR; h++) {
     const mins = (h - DAY_START_HOUR) * 60;
@@ -516,7 +514,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
     return (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
   }
 
-  // ── Drag block to move ──
   function onBlockMouseDown(e, blockId) {
     if (e.target.dataset.resize || e.target.dataset.edit) return;
     e.preventDefault();
@@ -541,7 +538,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
     document.addEventListener("mouseup", onUp);
   }
 
-  // ── Drag bottom edge to resize ──
   function onResizeMouseDown(e, blockId) {
     e.preventDefault();
     e.stopPropagation();
@@ -565,7 +561,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
     document.addEventListener("mouseup", onUp);
   }
 
-  // ── Click empty space to add ──
   function onTimelineClick(e) {
     if (draggingId || resizingId) return;
     if (e.target !== timelineRef.current && !e.target.classList.contains("tl-bg")) return;
@@ -586,7 +581,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
     setAddingAt(null); setNewLabel("");
   }
 
-  // ── Edit ──
   function startEdit(block) {
     setEditingId(block.id);
     setEditValues({ label: block.label, tag: block.tag, duration: block.duration || DEFAULT_DURATION, note: block.note || "" });
@@ -604,7 +598,9 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    // ── CHANGE 1: removed marginBottom:16 from outer wrapper, gap was coming
+    // from the spacer div at the bottom doubling the timeline height. Spacer removed.
+    <div>
       <div style={{ display: "flex", fontSize: 11, color: C.textDim, marginBottom: 8, gap: 16 }}>
         <span>click empty space to add a block</span>
         <span>drag to move · drag bottom edge to resize</span>
@@ -632,7 +628,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
             {hourMarkers.map(({ mins }) => (
               <div key={mins} style={{ position: "absolute", top: minutesToPx(mins), left: 0, right: 0, borderTop: `1px solid ${C.border}30`, pointerEvents: "none" }} />
             ))}
-            {/* Half-hour lines */}
             {hourMarkers.slice(0, -1).map(({ mins }) => (
               <div key={`h${mins}`} style={{ position: "absolute", top: minutesToPx(mins + 30), left: 0, right: 0, borderTop: `1px dashed ${C.border}20`, pointerEvents: "none" }} />
             ))}
@@ -673,7 +668,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                       userSelect: "none",
                     }}
                   >
-                    {/* Block content */}
                     <div style={{ padding: "4px 6px 4px 7px", height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 4, flex: 1, overflow: "hidden" }}>
                         <div style={{ flex: 1, overflow: "hidden" }}>
@@ -681,14 +675,12 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                           {height > 36 && <div style={{ fontSize: 9, color: tag.color, opacity: .8, marginTop: 1 }}>{tag.label} · {formatDuration(duration)}</div>}
                           {block.note && height > 52 && <div style={{ fontSize: 9, color: C.textDim, fontStyle: "italic", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.note}</div>}
                         </div>
-                        {/* Edit button */}
                         <button
                           data-edit="true"
                           onClick={e => { e.stopPropagation(); startEdit(block); }}
                           style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 3, cursor: "pointer", color: C.textDim, fontSize: 9, padding: "1px 4px", flexShrink: 0, lineHeight: 1.4, pointerEvents: "auto" }}
                           title="edit"
                         >✎</button>
-                        {/* Delete button */}
                         <button
                           data-edit="true"
                           onClick={e => { e.stopPropagation(); onBlocksChange(blocks.filter(b => b.id !== block.id)); }}
@@ -696,7 +688,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                           title="remove"
                         >✕</button>
                       </div>
-                      {/* Time label at bottom if tall enough */}
                       {height > 48 && (
                         <div style={{ fontSize: 8, color: C.textDim, fontFamily: "monospace", marginTop: "auto" }}>
                           {block.time} – {minutesToTimeStr(startMins + duration)}
@@ -704,7 +695,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                       )}
                     </div>
 
-                    {/* Resize handle */}
                     <div
                       data-resize="true"
                       onMouseDown={e => onResizeMouseDown(e, block.id)}
@@ -719,7 +709,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                     </div>
                   </div>
 
-                  {/* Edit panel */}
                   {isEditing && (
                     <div style={{
                       position: "absolute", top, left: "calc(100% + 8px)",
@@ -760,7 +749,6 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
             })}
           </div>
 
-          {/* Add block form */}
           {addingAt !== null && (
             <div style={{
               position: "absolute",
@@ -786,9 +774,139 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
           )}
         </div>
       </div>
+      {/* CHANGE 1: spacer div removed — was creating double-height gap below timeline */}
+    </div>
+  );
+}
 
-      {/* Timeline height spacer */}
-      <div style={{ height: timelineHeight + 8 }} />
+// ── CHANGE 4: Shift Calendar View ─────────────────────────────────────
+function ShiftCalendarView({ shifts, onShiftsChange }) {
+  const [adding, setAdding] = useState(false);
+  const [newShift, setNewShift] = useState({ jobId: SHIFT_JOBS[0].id, date: "", time: "", endTime: "", location: "" });
+
+  function addShift() {
+    if (!newShift.date) return;
+    onShiftsChange([...shifts, { ...newShift, id: genId() }]);
+    setNewShift({ jobId: SHIFT_JOBS[0].id, date: "", time: "", endTime: "", location: "" });
+    setAdding(false);
+  }
+
+  function deleteShift(id) { onShiftsChange(shifts.filter(s => s.id !== id)); }
+
+  const sorted = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = sorted.filter(s => s.date >= todayKey());
+  const past = sorted.filter(s => s.date < todayKey());
+
+  const grouped = upcoming.reduce((acc, s) => {
+    const month = dateFromLocalKey(s.date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    if (!acc[month]) acc[month] = [];
+    acc[month].push(s);
+    return acc;
+  }, {});
+
+  const nextShift = upcoming[0];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>SHIFTS</div>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+            {upcoming.length} upcoming
+            {nextShift && <span> · next: <span style={{ color: C.text }}>{SHIFT_JOBS.find(j => j.id === nextShift.jobId)?.label}</span> {formatEventDate(nextShift.date)}{nextShift.time ? ` ${nextShift.time}` : ""}</span>}
+          </div>
+        </div>
+        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          {adding ? "cancel" : "+ add shift"}
+        </button>
+      </div>
+
+      {/* Job legend */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+        {SHIFT_JOBS.map(j => (
+          <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: j.bg, border: `1px solid ${j.color}40`, borderRadius: 3 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: j.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: j.color }}>{j.label}</span>
+            {j.auto && <span style={{ fontSize: 9, color: j.color, opacity: .6 }}>auto</span>}
+          </div>
+        ))}
+      </div>
+
+      {adding && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW SHIFT</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <select value={newShift.jobId} onChange={e => setNewShift({ ...newShift, jobId: e.target.value })}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none", fontFamily: "inherit" }}>
+              {SHIFT_JOBS.map(j => <option key={j.id} value={j.id}>{j.label}{j.auto ? " (auto-scheduled)" : ""}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              <input type="date" value={newShift.date} onChange={e => setNewShift({ ...newShift, date: e.target.value })}
+                style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+              <input type="time" placeholder="start" value={newShift.time} onChange={e => setNewShift({ ...newShift, time: e.target.value })}
+                style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+              <input type="time" placeholder="end" value={newShift.endTime} onChange={e => setNewShift({ ...newShift, endTime: e.target.value })}
+                style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+            </div>
+            <input placeholder="location (optional)" value={newShift.location} onChange={e => setNewShift({ ...newShift, location: e.target.value })}
+              onKeyDown={e => e.key === "Enter" && addShift()}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+            <button onClick={addShift} disabled={!newShift.date}
+              style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start", opacity: !newShift.date ? 0.5 : 1 }}>
+              Add Shift
+            </button>
+          </div>
+        </div>
+      )}
+
+      {upcoming.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>no shifts scheduled yet</div>}
+
+      {Object.entries(grouped).map(([month, monthShifts]) => (
+        <div key={month} style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {monthShifts.map(s => {
+              const job = SHIFT_JOBS.find(j => j.id === s.jobId) || SHIFT_JOBS[0];
+              const d = dateFromLocalKey(s.date);
+              const isItToday = isToday(s.date);
+              return (
+                <div key={s.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? job.bg : C.card, border: `1px solid ${isItToday ? job.color + "50" : C.border}`, borderLeft: `3px solid ${job.color}`, borderRadius: 6 }}>
+                  <div style={{ textAlign: "center", minWidth: 32 }}>
+                    <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? job.color : C.text, lineHeight: 1 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: C.text }}>{job.label}</div>
+                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                      {s.time && <span style={{ color: job.color, marginRight: 6 }}>{s.time}{s.endTime ? ` – ${s.endTime}` : ""}</span>}
+                      {s.location && <span style={{ fontStyle: "italic" }}>{s.location}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => deleteShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {past.length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past shift{past.length !== 1 ? "s" : ""}</summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
+            {[...past].reverse().map(s => {
+              const job = SHIFT_JOBS.find(j => j.id === s.jobId) || SHIFT_JOBS[0];
+              return (
+                <div key={s.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
+                  <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                  <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{job.label}</span>
+                  {s.time && <span style={{ fontSize: 11, color: C.textDim }}>{s.time}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -1210,9 +1328,11 @@ export default function App() {
   const [showLateNightPrompt, setShowLateNightPrompt] = useState(false);
   const [lateNightKey, setLateNightKey]     = useState(null);
   const [view, setView]                     = useState("today");
-  const [blocks, setBlocks]                 = useState(makeDefaults());
+  const [blocks, setBlocks]                 = useState([]);
   const [tasks, setTasks]                   = useState([]);
   const [events, setEvents]                 = useState([]);
+  // CHANGE 4: shifts state
+  const [shifts, setShifts]                 = useState([]);
   const [tags, setTags]                     = useState(SEED_TAGS);
   const [mood, setMood]                     = useState(2);
   const [dayNote, setDayNote]               = useState("");
@@ -1228,7 +1348,7 @@ export default function App() {
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
   const currentDayKey = todayKey();
-  const [hasSeenDemo, setHasSeenDemo] = useState(false);
+  const [hasSeenDemo, setHasSeenDemo]       = useState(true); // CHANGE 3: default true so demo never loads
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1268,7 +1388,7 @@ export default function App() {
     if (choice === "today") {
       const undone = tasks.filter(t => !t.done);
       setTasks(undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })));
-      setBlocks(makeDefaults()); setMood(2); setDayNote(""); setWins(""); setHard("");
+      setBlocks([]); setMood(2); setDayNote(""); setWins(""); setHard("");
     }
   }
 
@@ -1277,11 +1397,13 @@ export default function App() {
     setDbLoading(true);
     const uid = session.user.id;
     try {
-      const [{ data: userData }, { data: archiveData }, { data: eventsData }, { data: journalData }] = await Promise.all([
+      const [{ data: userData }, { data: archiveData }, { data: eventsData }, { data: journalData }, { data: shiftsData }] = await Promise.all([
         supabase.from("user_data").select("*").eq("user_id", uid).single(),
         supabase.from("archive").select("*").eq("user_id", uid),
         supabase.from("events").select("*").eq("user_id", uid),
         supabase.from("journal_entries").select("*").eq("user_id", uid).eq("day_key", todayKey()).is("deleted_at", null),
+        // CHANGE 4: load shifts from user_data shifts column (stored as JSON)
+        supabase.from("user_data").select("shifts").eq("user_id", uid).single(),
       ]);
       if (userData) {
         if (userData.tags) setTags(userData.tags);
@@ -1292,18 +1414,16 @@ export default function App() {
           if (userData.day_note) setDayNote(userData.day_note);
           if (userData.wins) setWins(userData.wins);
           if (userData.hard) setHard(userData.hard);
-          if (userData.has_seen_demo !== undefined) setHasSeenDemo(userData.has_seen_demo);
         } else {
+          // CHANGE 3: always start new day with empty blocks — no demo defaults
           const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
           const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
           setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
-          if (!userData.has_seen_demo) {
-  setBlocks(makeDefaults());
-} else {
-  setBlocks([]);
-}
-setMood(2); setDayNote(""); setWins(""); setHard("");
+          setBlocks([]);
+          setMood(2); setDayNote(""); setWins(""); setHard("");
         }
+        // CHANGE 4: load shifts
+        if (userData.shifts) setShifts(userData.shifts);
       }
       if (archiveData) {
         const archiveObj = {};
@@ -1319,9 +1439,9 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
   const saveToday = useCallback(async (quiet = false) => {
     if (!session) return;
     const uid = session.user.id;
-    await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags }, { onConflict: "user_id" });
+    await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags, shifts }, { onConflict: "user_id" });
     if (!quiet) { setFlash("saved"); setTimeout(() => setFlash(null), 1600); }
-  }, [session, blocks, tasks, mood, dayNote, wins, hard, tags]);
+  }, [session, blocks, tasks, mood, dayNote, wins, hard, tags, shifts]);
 
   useEffect(() => { if (!session) return; loadData(); }, [session, loadData]);
 
@@ -1331,6 +1451,14 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
     return () => clearTimeout(timer);
   }, [session, saveToday]);
 
+  // CHANGE 4: save shifts whenever they change
+  async function saveShifts(newShifts) {
+    setShifts(newShifts);
+    if (!session) return;
+    await supabase.from("user_data").upsert({ user_id: session.user.id, today_key: todayKey(), shifts: newShifts }, { onConflict: "user_id" });
+  }
+
+  // CHANGE 2: archiveDay now resets to a fresh day after archiving
   async function archiveDay() {
     if (!session) return;
     const uid = session.user.id;
@@ -1341,10 +1469,21 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
     const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, journal_entries: activeJournalEntries, date: today(), key: todayKey() };
     await Promise.all([
       supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
-      supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks }, { onConflict: "user_id" }),
+      supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks, shifts }, { onConflict: "user_id" }),
     ]);
     setArchive({ ...archive, [todayKey()]: dayData });
-    setTasks(tasks.filter(t => !t.done));
+
+    // CHANGE 2: reset to fresh page after archive — roll undone tasks, clear everything else
+    const undone = tasks.filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
+    const scheduled = tasks.filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
+    setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
+    setBlocks([]);
+    setMood(2);
+    setDayNote("");
+    setWins("");
+    setHard("");
+    setJournalEntries([]);
+
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
 
@@ -1563,6 +1702,7 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
           </div>
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
             <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
+            <button className={`nav${view === "shifts" ? " on" : ""}`} onClick={() => setView("shifts")}>Shifts</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
             <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
@@ -1598,23 +1738,9 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
             </div>
           )}
 
-          {/* Visual Timeline */}
           <VisualTimeline
             blocks={blocks}
-         onBlocksChange={(newBlocksOrUpdater) => {
-  // Dismiss demo on ANY block interaction (add, edit, delete) if not already dismissed
-  const shouldDismissDemo = !hasSeenDemo;
-  
-  setBlocks(newBlocksOrUpdater);
-  
-  if (shouldDismissDemo) {
-    const uid = session?.user?.id;
-    if (uid) {
-      supabase.from('user_data').update({ has_seen_demo: true }).eq('user_id', uid);
-      setHasSeenDemo(true);
-    }
-  }
-}}
+            onBlocksChange={setBlocks}
             tags={tags}
             onPersistTags={persistTags}
           />
@@ -1746,6 +1872,9 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
             </div>
           </div>
         </>}
+
+        {/* SHIFTS — CHANGE 4 */}
+        {view === "shifts" && <ShiftCalendarView shifts={shifts} onShiftsChange={saveShifts} />}
 
         {/* CALENDAR */}
         {view === "calendar" && <CalendarView events={events} onEventsChange={saveEvents} />}
@@ -1911,4 +2040,3 @@ setMood(2); setDayNote(""); setWins(""); setHard("");
     </div>
   );
 }
-
