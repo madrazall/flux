@@ -9,6 +9,7 @@ import {
   resolveSavedEvents,
   sortJournalEntries,
 } from "./utils/appLogic";
+import { getSkyForDate, formatPhase, phaseSymbol } from "./utils/skyData";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -36,12 +37,6 @@ const SEED_TAGS = [
   { id: "human stuff", label: "human stuff", ...TAG_PALETTE[3], pinned: true },
 ];
 
-// ── CHANGE 4: Shift calendar job constants ────────────────────────────
-const SHIFT_JOBS = [
-  { id: "toce",       label: "TOCE Performance",      color: "#e8365d", bg: "#3d1220", auto: true },
-  { id: "riverhouse", label: "Riverhouse Catering",   color: "#38bdf8", bg: "#0c2233", auto: false },
-  { id: "strykers",   label: "Strykers Sports Cafe",  color: "#10b981", bg: "#0d2e22", auto: false },
-];
 
 const PROMOTE_THRESHOLD = 3;
 const SNAP_MINUTES = 5;
@@ -782,12 +777,12 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
 // ── CHANGE 4: Shift Calendar View ─────────────────────────────────────
 function ShiftCalendarView({ shifts, onShiftsChange }) {
   const [adding, setAdding] = useState(false);
-  const [newShift, setNewShift] = useState({ jobId: SHIFT_JOBS[0].id, date: "", time: "", endTime: "", location: "" });
+  const [newShift, setNewShift] = useState({ label: "", date: "", time: "", endTime: "", location: "" });
 
   function addShift() {
     if (!newShift.date) return;
     onShiftsChange([...shifts, { ...newShift, id: genId() }]);
-    setNewShift({ jobId: SHIFT_JOBS[0].id, date: "", time: "", endTime: "", location: "" });
+    setNewShift({ label: "", date: "", time: "", endTime: "", location: "" });
     setAdding(false);
   }
 
@@ -813,7 +808,7 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>SHIFTS</div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
             {upcoming.length} upcoming
-            {nextShift && <span> · next: <span style={{ color: C.text }}>{SHIFT_JOBS.find(j => j.id === nextShift.jobId)?.label}</span> {formatEventDate(nextShift.date)}{nextShift.time ? ` ${nextShift.time}` : ""}</span>}
+            {nextShift && <span> · next: <span style={{ color: C.text }}>{nextShift.label || "shift"}</span> {formatEventDate(nextShift.date)}{nextShift.time ? ` ${nextShift.time}` : ""}</span>}
           </div>
         </div>
         <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -821,25 +816,12 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
         </button>
       </div>
 
-      {/* Job legend */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-        {SHIFT_JOBS.map(j => (
-          <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: j.bg, border: `1px solid ${j.color}40`, borderRadius: 3 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: j.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: j.color }}>{j.label}</span>
-            {j.auto && <span style={{ fontSize: 9, color: j.color, opacity: .6 }}>auto</span>}
-          </div>
-        ))}
-      </div>
-
       {adding && (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW SHIFT</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <select value={newShift.jobId} onChange={e => setNewShift({ ...newShift, jobId: e.target.value })}
-              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none", fontFamily: "inherit" }}>
-              {SHIFT_JOBS.map(j => <option key={j.id} value={j.id}>{j.label}{j.auto ? " (auto-scheduled)" : ""}</option>)}
-            </select>
+            <input placeholder="label (e.g. waitstaff, studio, client)" value={newShift.label} onChange={e => setNewShift({ ...newShift, label: e.target.value })}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none", fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 10 }}>
               <input type="date" value={newShift.date} onChange={e => setNewShift({ ...newShift, date: e.target.value })}
                 style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
@@ -866,19 +848,18 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
           <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {monthShifts.map(s => {
-              const job = SHIFT_JOBS.find(j => j.id === s.jobId) || SHIFT_JOBS[0];
               const d = dateFromLocalKey(s.date);
               const isItToday = isToday(s.date);
               return (
-                <div key={s.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? job.bg : C.card, border: `1px solid ${isItToday ? job.color + "50" : C.border}`, borderLeft: `3px solid ${job.color}`, borderRadius: 6 }}>
+                <div key={s.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : C.border}`, borderRadius: 6 }}>
                   <div style={{ textAlign: "center", minWidth: 32 }}>
-                    <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? job.color : C.text, lineHeight: 1 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
                     <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: C.text }}>{job.label}</div>
+                    <div style={{ fontSize: 13, color: C.text }}>{s.label || "shift"}</div>
                     <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                      {s.time && <span style={{ color: job.color, marginRight: 6 }}>{s.time}{s.endTime ? ` – ${s.endTime}` : ""}</span>}
+                      {s.time && <span style={{ color: C.textMid, marginRight: 6 }}>{s.time}{s.endTime ? ` – ${s.endTime}` : ""}</span>}
                       {s.location && <span style={{ fontStyle: "italic" }}>{s.location}</span>}
                     </div>
                   </div>
@@ -894,16 +875,13 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
         <details style={{ marginTop: 10 }}>
           <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past shift{past.length !== 1 ? "s" : ""}</summary>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
-            {[...past].reverse().map(s => {
-              const job = SHIFT_JOBS.find(j => j.id === s.jobId) || SHIFT_JOBS[0];
-              return (
-                <div key={s.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
-                  <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                  <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{job.label}</span>
-                  {s.time && <span style={{ fontSize: 11, color: C.textDim }}>{s.time}</span>}
-                </div>
-              );
-            })}
+            {[...past].reverse().map(s => (
+              <div key={s.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
+                <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{s.label || "shift"}</span>
+                {s.time && <span style={{ fontSize: 11, color: C.textDim }}>{s.time}</span>}
+              </div>
+            ))}
           </div>
         </details>
       )}
@@ -936,6 +914,47 @@ function EarlyAccessBanner() {
           <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0 }}>✕</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Sky Banner ────────────────────────────────────────────────────────
+function SkyBanner({ dateKey }) {
+  const sky = getSkyForDate(dateKey);
+  if (!sky) return null;
+
+  const aspects = sky.toNatal ? Object.entries(sky.toNatal) : [];
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "12px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: aspects.length ? 10 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20 }}>{phaseSymbol(sky.moonPhase)}</span>
+          <div>
+            <div style={{ fontSize: 12, color: C.text }}>
+              Moon in <span style={{ color: C.accent }}>{sky.moonSign}</span>
+              <span style={{ color: C.textDim, fontSize: 11 }}> · {formatPhase(sky.moonPhase)}</span>
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+              Sun in {sky.sunSign}
+              {sky.majorAspects?.length > 0 && (
+                <span> · {sky.majorAspects.map(a => `${a.planet} ${a.aspect} ${a.target}`).join(", ")}</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 9, color: C.textDim, letterSpacing: 1 }}>SKY</div>
+      </div>
+
+      {aspects.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {aspects.map(([key, aspect]) => (
+            <span key={key} style={{ fontSize: 10, color: C.textMid, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 3, padding: "2px 7px" }}>
+              {key.replace(/([A-Z])/g, " $1").toLowerCase().trim()} · {aspect}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1343,12 +1362,45 @@ export default function App() {
   const [journalPromptOffset, setJournalPromptOffset] = useState(0);
   const [journalSaving, setJournalSaving]   = useState(false);
   const [journalFeedback, setJournalFeedback] = useState(null);
+  // Auto-archive timer
+useEffect(() => {
+  if (!session) return;
+  
+  function checkAutoArchive() {
+    const now = new Date();
+    const currentH = now.getHours();
+    const currentM = now.getMinutes();
+    const [targetH, targetM] = archiveTime.split(":").map(Number);
+    
+    // Only archive if: it's the target time, we haven't auto-archived today, AND there's something to archive
+    const hasContent = blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote || journalEntries.length > 0;
+    
+    if (currentH === targetH && currentM === targetM && !autoArchivedToday && hasContent) {
+      archiveDay();
+      localStorage.setItem("flux_autoarchived_" + todayKey(), "true");
+      setAutoArchivedToday(true);
+    }
+    
+    // Reset the flag at 1 AM so tomorrow it can trigger again
+    if (currentH === 1 && currentM === 0) {
+      localStorage.removeItem("flux_autoarchived_" + todayKey());
+      setAutoArchivedToday(false);
+    }
+  }
+  
+  checkAutoArchive();
+  const interval = setInterval(checkAutoArchive, 60000); // check every minute
+  
+  return () => clearInterval(interval);
+}, [session, archiveTime, autoArchivedToday, blocks, tasks, wins, hard, dayNote, journalEntries]);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
   const currentDayKey = todayKey();
-
+const [hasSeenDemo, setHasSeenDemo] = useState(true); // CHANGE 3: default true so demo never loads
+const [archiveTime, setArchiveTime] = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
+const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1397,11 +1449,13 @@ export default function App() {
     setDbLoading(true);
     const uid = session.user.id;
     try {
-      const [{ data: userData }, { data: archiveData }, { data: eventsData }, { data: journalData }] = await Promise.all([
+      const [{ data: userData }, { data: archiveData }, { data: eventsData }, { data: journalData }, { data: shiftsData }] = await Promise.all([
         supabase.from("user_data").select("*").eq("user_id", uid).single(),
         supabase.from("archive").select("*").eq("user_id", uid),
         supabase.from("events").select("*").eq("user_id", uid),
         supabase.from("journal_entries").select("*").eq("user_id", uid).eq("day_key", todayKey()).is("deleted_at", null),
+        // CHANGE 4: load shifts from user_data shifts column (stored as JSON)
+        supabase.from("user_data").select("shifts").eq("user_id", uid).single(),
       ]);
       if (userData) {
         if (userData.tags) setTags(userData.tags);
@@ -1413,13 +1467,13 @@ export default function App() {
           if (userData.wins) setWins(userData.wins);
           if (userData.hard) setHard(userData.hard);
         } else {
-          // CHANGE 3: always start new day with empty blocks — no demo defaults
-          const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
-          const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
-          setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
-          setBlocks([]);
-          setMood(2); setDayNote(""); setWins(""); setHard("");
-        }
+  // CHANGE 3: always start new day with empty blocks — no demo defaults
+  const undone = (userData.tasks || []).filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
+  const scheduled = (userData.tasks || []).filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
+  setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
+  setBlocks([]); // <-- empty, no demos
+  setMood(2); setDayNote(""); setWins(""); setHard("");
+}
         // CHANGE 4: load shifts
         if (userData.shifts) setShifts(userData.shifts);
       }
@@ -1458,18 +1512,17 @@ export default function App() {
 
   // CHANGE 2: archiveDay now resets to a fresh day after archiving
   async function archiveDay() {
-    if (!session) return;
-    const uid = session.user.id;
-    let updatedTags = [...tags];
-    blocks.forEach(b => { if (b.tag) updatedTags = bumpTagUse(b.tag, updatedTags); });
-    setTags(updatedTags);
-    const activeJournalEntries = sortJournalEntries(journalEntries.filter(e => !e.deleted_at));
-    const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, journal_entries: activeJournalEntries, date: today(), key: todayKey() };
-    await Promise.all([
-      supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
-      supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks, shifts }, { onConflict: "user_id" }),
-    ]);
-    setArchive({ ...archive, [todayKey()]: dayData });
+  if (!session) return;
+  const uid = session.user.id;
+  
+  // ... existing archive code ...
+  
+  // CHANGE: set auto-archive flag
+  localStorage.setItem("flux_autoarchived_" + todayKey(), "true");
+  setAutoArchivedToday(true);
+  
+  setFlash("archived"); setTimeout(() => setFlash(null), 2000);
+}
 
     // CHANGE 2: reset to fresh page after archive — roll undone tasks, clear everything else
     const undone = tasks.filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
@@ -1729,6 +1782,8 @@ export default function App() {
             </div>
           </div>
 
+          <SkyBanner dateKey={todayKey()} />
+
           {promotedTags.length > 0 && (
             <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>tags:</span>
@@ -1864,12 +1919,36 @@ export default function App() {
                 </div>
               </div>
             </details>
-            <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
-              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
-              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive day →</button>
-            </div>
-          </div>
-        </>}
+            <div style={{ display: "flex", gap: 10, marginTop: 15, alignItems: "center", flexWrap: "wrap" }}>
+  <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
+  
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
+    <input 
+      type="time" 
+      value={archiveTime} 
+      onChange={e => {
+        const newTime = e.target.value;
+        setArchiveTime(newTime);
+        localStorage.setItem("flux_archive_time", newTime);
+      }}
+      style={{ 
+        background: C.card, 
+        border: `1px solid ${C.border}`, 
+        color: C.text, 
+        borderRadius: 4, 
+        padding: "6px 8px", 
+        fontSize: 11, 
+        outline: "none", 
+        fontFamily: "inherit" 
+      }} 
+    />
+  </div>
+  
+  <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
+    Archive now →
+  </button>
+</div>
 
         {/* SHIFTS — CHANGE 4 */}
         {view === "shifts" && <ShiftCalendarView shifts={shifts} onShiftsChange={saveShifts} />}
