@@ -1595,6 +1595,13 @@ export default function App() {
     if (!session || !text || journalSaving) return;
     setJournalSaving(true);
     setJournalFeedback(null);
+    const sky = getSkyForDate(todayKey());
+    const skyContext = sky ? {
+      moonSign: sky.moonSign,
+      moonPhase: sky.moonPhase,
+      sunSign: sky.sunSign,
+      activeRules: evaluateRules(sky).map(r => r.id),
+    } : null;
     const payload = {
       user_id: session.user.id,
       day_key: todayKey(),
@@ -1603,6 +1610,8 @@ export default function App() {
       pinned: false,
       archived: false,
       source: "manual",
+      sky_context: skyContext,
+      mood_at_entry: mood,
     };
     const { data, error } = await supabase.from("journal_entries").insert(payload).select("*").single();
     if (!error && data) {

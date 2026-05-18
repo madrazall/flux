@@ -107,7 +107,11 @@ export const SKY_DATA = [
 ];
 
 export function getSkyForDate(dateKey) {
-  return SKY_DATA.find(d => d.date === dateKey) || null;
+  const exact = SKY_DATA.find(d => d.date === dateKey);
+  if (exact) return exact;
+  // Fall back to most recent past entry
+  const past = SKY_DATA.filter(d => d.date <= dateKey).sort((a, b) => b.date.localeCompare(a.date));
+  return past[0] || null;
 }
 
 // ── Phase display helpers ─────────────────────────────────────────────
