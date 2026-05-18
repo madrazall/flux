@@ -1373,45 +1373,13 @@ export default function App() {
   const [journalPromptOffset, setJournalPromptOffset] = useState(0);
   const [journalSaving, setJournalSaving]   = useState(false);
   const [journalFeedback, setJournalFeedback] = useState(null);
-  // Auto-archive timer
-useEffect(() => {
-  if (!session) return;
-  
-  function checkAutoArchive() {
-    const now = new Date();
-    const currentH = now.getHours();
-    const currentM = now.getMinutes();
-    const [targetH, targetM] = archiveTime.split(":").map(Number);
-    
-    // Only archive if: it's the target time, we haven't auto-archived today, AND there's something to archive
-    const hasContent = blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote || journalEntries.length > 0;
-    
-    if (currentH === targetH && currentM === targetM && !autoArchivedToday && hasContent) {
-      archiveDay();
-      localStorage.setItem("flux_autoarchived_" + todayKey(), "true");
-      setAutoArchivedToday(true);
-    }
-    
-    // Reset the flag at 1 AM so tomorrow it can trigger again
-    if (currentH === 1 && currentM === 0) {
-      localStorage.removeItem("flux_autoarchived_" + todayKey());
-      setAutoArchivedToday(false);
-    }
-  }
-  
-  checkAutoArchive();
-  const interval = setInterval(checkAutoArchive, 60000); // check every minute
-  
-  return () => clearInterval(interval);
-}, [session, archiveTime, autoArchivedToday, blocks, tasks, wins, hard, dayNote, journalEntries]);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
   const [dbLoading, setDbLoading]           = useState(false);
+  const [archiveTime, setArchiveTime]       = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
+  const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
   const currentDayKey = todayKey();
-const [hasSeenDemo, setHasSeenDemo] = useState(true); // CHANGE 3: default true so demo never loads
-const [archiveTime, setArchiveTime] = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
-const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1521,21 +1489,21 @@ const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.ge
     await supabase.from("user_data").upsert({ user_id: session.user.id, today_key: todayKey(), shifts: newShifts }, { onConflict: "user_id" });
   }
 
-  // CHANGE 2: archiveDay now resets to a fresh day after archiving
   async function archiveDay() {
-  if (!session) return;
-  const uid = session.user.id;
-  
-  // ... existing archive code ...
-  
-  // CHANGE: set auto-archive flag
-  localStorage.setItem("flux_autoarchived_" + todayKey(), "true");
-  setAutoArchivedToday(true);
-  
-  setFlash("archived"); setTimeout(() => setFlash(null), 2000);
-}
-
-    // CHANGE 2: reset to fresh page after archive — roll undone tasks, clear everything else
+    if (!session) return;
+    const uid = session.user.id;
+    let updatedTags = [...tags];
+    blocks.forEach(b => { if (b.tag) updatedTags = bumpTagUse(b.tag, updatedTags); });
+    setTags(updatedTags);
+    const activeJournalEntries = sortJournalEntries(journalEntries.filter(e => !e.deleted_at));
+    const dayData = { blocks, mood, day_note: dayNote, wins, hard, tasks, journal_entries: activeJournalEntries, date: today(), key: todayKey() };
+    await Promise.all([
+      supabase.from("archive").upsert({ user_id: uid, day_key: todayKey(), data: dayData }, { onConflict: "user_id,day_key" }),
+      supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tags: updatedTags, mood, day_note: dayNote, wins, hard, tasks }, { onConflict: "user_id" }),
+    ]);
+    setArchive({ ...archive, [todayKey()]: dayData });
+    localStorage.setItem("flux_autoarchived_" + todayKey(), "true");
+    setAutoArchivedToday(true);
     const undone = tasks.filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
     const scheduled = tasks.filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
     setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
@@ -1545,9 +1513,29 @@ const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.ge
     setWins("");
     setHard("");
     setJournalEntries([]);
-
     setFlash("archived"); setTimeout(() => setFlash(null), 2000);
   }
+
+  useEffect(() => {
+    if (!session) return;
+    function checkAutoArchive() {
+      const now = new Date();
+      const currentH = now.getHours();
+      const currentM = now.getMinutes();
+      const [targetH, targetM] = archiveTime.split(":").map(Number);
+      const hasContent = blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote || journalEntries.length > 0;
+      if (currentH === targetH && currentM === targetM && !autoArchivedToday && hasContent) {
+        archiveDay();
+      }
+      if (currentH === 1 && currentM === 0) {
+        localStorage.removeItem("flux_autoarchived_" + todayKey());
+        setAutoArchivedToday(false);
+      }
+    }
+    checkAutoArchive();
+    const interval = setInterval(checkAutoArchive, 60000);
+    return () => clearInterval(interval);
+  }, [session, archiveTime, autoArchivedToday, blocks, tasks, wins, hard, dayNote, journalEntries]);
 
   async function deleteArchiveDay(dayKey) {
     if (!session) return;
@@ -1726,12 +1714,12 @@ const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.ge
   if (!session) return <AuthScreen />;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans','system-ui',sans-serif", fontSize: "13px" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Bebas+Neue&family=DM+Mono:wght@400&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
-        textarea,input{font-family:inherit}
+        textarea,input{font-family:'DM Mono','Fira Code','Courier New',monospace;font-size:13px}
         .task-row:hover .task-del{opacity:1!important}
         .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
         .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
@@ -1931,37 +1919,18 @@ const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.ge
               </div>
             </details>
             <div style={{ display: "flex", gap: 10, marginTop: 15, alignItems: "center", flexWrap: "wrap" }}>
-  <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
-  
-  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-    <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
-    <input 
-      type="time" 
-      value={archiveTime} 
-      onChange={e => {
-        const newTime = e.target.value;
-        setArchiveTime(newTime);
-        localStorage.setItem("flux_archive_time", newTime);
-      }}
-      style={{ 
-        background: C.card, 
-        border: `1px solid ${C.border}`, 
-        color: C.text, 
-        borderRadius: 4, 
-        padding: "6px 8px", 
-        fontSize: 11, 
-        outline: "none", 
-        fontFamily: "inherit" 
-      }} 
-    />
-  </div>
-  
-  <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
-    Archive now →
-  </button>
-</div>
+              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
+                <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
+                  style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "6px 8px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
+              </div>
+              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now →</button>
+            </div>
+          </div>
+        </>}
 
-        {/* SHIFTS — CHANGE 4 */}
+        {/* SHIFTS */}
         {view === "shifts" && <ShiftCalendarView shifts={shifts} onShiftsChange={saveShifts} />}
 
         {/* CALENDAR */}
