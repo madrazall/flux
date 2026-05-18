@@ -9,7 +9,7 @@ import {
   resolveSavedEvents,
   sortJournalEntries,
 } from "./utils/appLogic";
-import { getSkyForDate, formatPhase, phaseSymbol } from "./utils/skyData";
+import { getSkyForDate, formatPhase, phaseSymbol, evaluateRules } from "./utils/skyData";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -924,10 +924,11 @@ function SkyBanner({ dateKey }) {
   if (!sky) return null;
 
   const aspects = sky.toNatal ? Object.entries(sky.toNatal) : [];
+  const activeRules = evaluateRules(sky);
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "12px 16px", marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: aspects.length ? 10 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: (aspects.length || activeRules.length) ? 10 : 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 20 }}>{phaseSymbol(sky.moonPhase)}</span>
           <div>
@@ -947,11 +948,21 @@ function SkyBanner({ dateKey }) {
       </div>
 
       {aspects.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: activeRules.length ? 10 : 0 }}>
           {aspects.map(([key, aspect]) => (
             <span key={key} style={{ fontSize: 10, color: C.textMid, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 3, padding: "2px 7px" }}>
               {key.replace(/([A-Z])/g, " $1").toLowerCase().trim()} · {aspect}
             </span>
+          ))}
+        </div>
+      )}
+
+      {activeRules.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {activeRules.map(rule => (
+            <div key={rule.id} style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>
+              {rule.message}
+            </div>
           ))}
         </div>
       )}
