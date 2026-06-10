@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import HelpSystem from './HelpSystem.jsx';
+import FeedbackButton from './FeedbackButton.jsx';
 import { createClient } from "@supabase/supabase-js";
 import {
   localDateKey,
@@ -2348,6 +2349,7 @@ export default function App() {
 
 
       </div>
+      <FeedbackButton userEmail={session?.user?.email || ""} />
     </div>
   );
 }
