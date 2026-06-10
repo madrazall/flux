@@ -1423,7 +1423,6 @@ export default function App() {
   const [journalFeedback, setJournalFeedback] = useState(null);
   const [journalType, setJournalType]       = useState("note");
   const journalInputRef = useRef(null);
-  const [allJournalEntries, setAllJournalEntries] = useState([]);
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
