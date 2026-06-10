@@ -47,8 +47,8 @@ export async function onRequestPost(context) {
       "subscription_data[trial_period_days]": "7",
       "subscription_data[metadata][userId]": userId,
       "metadata[userId]": userId,
-      "success_url": `${appUrl}/fluxdaily/?checkout=success`,
-      "cancel_url": `${appUrl}/fluxdaily/?checkout=cancel`,
+      "success_url": `${appUrl}/?checkout=success`,
+      "cancel_url": `${appUrl}/?checkout=cancel`,
     });
 
     const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
