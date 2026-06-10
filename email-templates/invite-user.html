@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You've been invited to Flux</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a0b;font-family:Georgia,'Times New Roman',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0b;min-height:100vh;">
+    <tr>
+      <td align="center" style="padding:48px 16px;">
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:40px;">
+              <span style="font-family:Impact,'Arial Black',Arial,sans-serif;font-size:28px;letter-spacing:6px;color:#e8365d;text-transform:uppercase;">FLUX</span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#111113;border:1px solid #1e1e22;border-top:2px solid #e8365d;padding:40px 36px;">
+
+              <!-- Eyebrow -->
+              <p style="margin:0 0 20px 0;font-family:'Courier New',Courier,monospace;font-size:10px;letter-spacing:3px;color:#e8365d;text-transform:uppercase;">
+                You're invited
+              </p>
+
+              <!-- Heading -->
+              <h1 style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#f0f0f2;line-height:1.2;">
+                A planner built for<br /><em style="color:#e8365d;">brains in flux</em>
+              </h1>
+
+              <!-- Body -->
+              <p style="margin:0 0 12px 0;font-family:'Courier New',Courier,monospace;font-size:13px;color:#888896;line-height:1.8;">
+                You've been given access to Flux &mdash; a daily planner and journal built for people who've tried every other system and found it lacking.
+              </p>
+              <p style="margin:0 0 32px 0;font-family:'Courier New',Courier,monospace;font-size:13px;color:#888896;line-height:1.8;">
+                Click below to set your password and activate your account. This invite expires in 24 hours.
+              </p>
+
+              <!-- Feature list -->
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:32px;">
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#e8365d;">+</span>
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#888896;padding-left:10px;">Visual schedule that moves with you</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#e8365d;">+</span>
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#888896;padding-left:10px;">Tasks that roll forward, not disappear</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#e8365d;">+</span>
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#888896;padding-left:10px;">End of day debrief, not a guilt trip</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#e8365d;">+</span>
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#888896;padding-left:10px;">Patterns that show you how you actually work</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#e8365d;border-radius:4px;">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:inline-block;padding:14px 32px;font-family:'Courier New',Courier,monospace;font-size:11px;font-weight:bold;letter-spacing:2px;color:#ffffff;text-decoration:none;text-transform:uppercase;">
+                      Accept Invite &amp; Set Password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fallback link -->
+              <p style="margin:24px 0 0 0;font-family:'Courier New',Courier,monospace;font-size:10px;color:#44444e;line-height:1.7;">
+                Button not working? Copy and paste this link into your browser:<br />
+                <a href="{{ .ConfirmationURL }}" style="color:#e8365d;word-break:break-all;">{{ .ConfirmationURL }}</a>
+              </p>
+
+              <!-- Divider -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:32px 0;">
+                <tr><td style="border-top:1px solid #1e1e22;font-size:0;line-height:0;">&nbsp;</td></tr>
+              </table>
+
+              <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:10px;color:#44444e;line-height:1.7;">
+                If you weren't expecting this invite, you can ignore this email. No account will be created.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top:32px;" align="center">
+              <p style="margin:0 0 8px 0;font-family:'Courier New',Courier,monospace;font-size:10px;color:#2a2a2e;letter-spacing:2px;text-transform:uppercase;">
+                FLUX &mdash; daily planner
+              </p>
+              <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:10px;color:#2a2a2e;">
+                by <a href="https://madrazallbuilt.com" style="color:#2a2a2e;text-decoration:none;">madrazallbuilt.com</a>
+                &nbsp;&middot;&nbsp;
+                <a href="https://madrazallbuilt.com/dailyflux" style="color:#2a2a2e;text-decoration:none;">open app</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
