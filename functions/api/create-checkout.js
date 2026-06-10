@@ -11,7 +11,7 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   const corsHeaders = {
-    "Access-Control-Allow-Origin": env.APP_URL || "https://fluxdaily.app",
+    "Access-Control-Allow-Origin": env.APP_URL || "https://madrazallbuilt.com",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
@@ -88,7 +88,7 @@ export async function onRequestOptions(context) {
   return new Response(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": env.APP_URL || "https://fluxdaily.app",
+      "Access-Control-Allow-Origin": env.APP_URL || "https://madrazallbuilt.com",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
