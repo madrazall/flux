@@ -1181,8 +1181,6 @@ function AuthScreen({ session = null, onSignOut = null }) {
   const [billingInterval, setBillingInterval] = useState("month");
   const [subLoading, setSubLoading] = useState(false);
   const [subError, setSubError] = useState("");
-  const checkoutStatus = new URLSearchParams(window.location.search).get("checkout");
-
   async function handleSubscribe() {
     setSubLoading(true); setSubError("");
     try {
@@ -1332,15 +1330,7 @@ function AuthScreen({ session = null, onSignOut = null }) {
 
           {session ? (
             /* ---- Subscribe card (signed in, no active sub) ---- */
-            checkoutStatus === "success" ? (
-              <div style={{ textAlign: "center", padding: "16px 0" }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: "#e8365d", marginBottom: 8 }}>YOU'RE IN</div>
-                <div style={{ fontSize: 13, color: "#f0f0f2", marginBottom: 6 }}>Subscription active.</div>
-                <div style={{ fontSize: 11, color: "#888896", marginBottom: 24 }}>Refresh to open Flux.</div>
-                <button className="auth-btn-primary" onClick={() => window.location.href = "/"}>Open Flux &rarr;</button>
-              </div>
-            ) : (
-              <div>
+            <div>
                 <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Start your free trial</div>
                 <div style={{ fontSize: 11, color: "#50505a", marginBottom: 20 }}>7 days free, then choose a plan. Cancel anytime.</div>
 
@@ -1371,7 +1361,6 @@ function AuthScreen({ session = null, onSignOut = null }) {
                   sign out
                 </button>
               </div>
-            )
           ) : (
             /* ---- Sign in / sign up / forgot card ---- */
             <div>
@@ -1575,7 +1564,10 @@ export default function App() {
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
   const [userSub, setUserSub]               = useState(null);
   const [subLoading, setSubLoading]         = useState(false);
+  const [subPolling, setSubPolling]         = useState(false);
   const currentDayKey = todayKey();
+
+  const checkoutSuccess = new URLSearchParams(window.location.search).get("checkout") === "success";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1590,6 +1582,28 @@ export default function App() {
     supabase.from("subscriptions").select("status, current_period_end").eq("user_id", session.user.id).single()
       .then(({ data }) => { setUserSub(data); setSubLoading(false); });
   }, [session]);
+
+  // After Stripe checkout, poll until the webhook writes the subscription row
+  useEffect(() => {
+    if (!checkoutSuccess || !session) return;
+    const active = (d) => d && (d.status === "active" || d.status === "trialing");
+    if (active(userSub)) { window.history.replaceState({}, "", "/"); return; }
+    setSubPolling(true);
+    let attempts = 0;
+    const timer = setInterval(async () => {
+      attempts++;
+      const { data } = await supabase.from("subscriptions").select("status, current_period_end").eq("user_id", session.user.id).single();
+      if (active(data)) {
+        setUserSub(data);
+        setSubPolling(false);
+        clearInterval(timer);
+        window.history.replaceState({}, "", "/");
+      }
+      if (attempts >= 15) { setSubPolling(false); clearInterval(timer); }
+    }, 2000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutSuccess, session]);
 
   useEffect(() => {
     if (window.location.hash.includes("type=recovery")) setShowResetForm(true);
@@ -1918,6 +1932,13 @@ export default function App() {
   const hasActiveSub = userSub && (userSub.status === "active" || userSub.status === "trialing");
 
   if (authLoading || subLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
+  if (subPolling) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 16 }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
+      <div style={{ fontSize: 11, letterSpacing: 2 }}>activating your subscription...</div>
+      <div style={{ fontSize: 10, color: "#44444e" }}>this takes just a moment</div>
+    </div>
+  );
   if (!session || !hasActiveSub) return <AuthScreen session={session} onSignOut={() => supabase.auth.signOut()} />;
 
   return (
