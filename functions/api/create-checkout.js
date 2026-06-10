@@ -17,10 +17,10 @@ export async function onRequestPost(context) {
   };
 
   try {
-    const { userId, email, interval } = await request.json();
+    const { userId, interval } = await request.json();
 
-    if (!userId || !email) {
-      return new Response(JSON.stringify({ error: "Missing userId or email" }), {
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Missing userId" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -37,11 +37,10 @@ export async function onRequestPost(context) {
       });
     }
 
-    const appUrl = env.APP_URL || "https://fluxdaily.app";
+    const appUrl = env.APP_URL || "https://flux-6xu.pages.dev";
 
     const params = new URLSearchParams({
       "mode": "subscription",
-      "customer_email": email,
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
       "subscription_data[trial_period_days]": "7",
