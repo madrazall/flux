@@ -1166,109 +1166,37 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// â"€â"€ Paywall â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-function Paywall({ session, onSignOut }) {
-  const [billingInterval, setBillingInterval] = useState("month");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// -- Paywall is merged into AuthScreen below --
 
-  // Handle return from Stripe checkout
-  const params = new URLSearchParams(window.location.search);
-  const checkoutStatus = params.get("checkout");
-
-  async function handleSubscribe() {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: session.user.id,
-          interval: billingInterval,
-        }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError(data.error || "Something went wrong. Try again.");
-      }
-    } catch (e) {
-      setError("Connection error. Try again.");
-    }
-    setLoading(false);
-  }
-
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans',sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Bebas+Neue&display=swap');*{box-sizing:border-box;margin:0;padding:0}`}</style>
-
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 4, color: C.accent, marginBottom: 8 }}>FLUX</div>
-      <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, textTransform: "uppercase", marginBottom: 48 }}>daily planner</div>
-
-      {checkoutStatus === "success" ? (
-        <div style={{ textAlign: "center", maxWidth: 360 }}>
-          <div style={{ fontSize: 32, marginBottom: 16 }}>✓</div>
-          <div style={{ fontSize: 15, color: C.text, marginBottom: 8 }}>You're in.</div>
-          <div style={{ fontSize: 12, color: C.textMid, marginBottom: 24 }}>Subscription active. Refresh to get started.</div>
-          <button onClick={() => window.location.href = "/"} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 24px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>Open Flux →</button>
-        </div>
-      ) : (
-        <div style={{ width: "100%", maxWidth: 400 }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ fontSize: 20, color: C.text, fontWeight: 500, marginBottom: 8 }}>Start your free trial</div>
-            <div style={{ fontSize: 12, color: C.textMid }}>7 days free, then choose a plan. Cancel anytime.</div>
-          </div>
-
-          {/* Plan toggle */}
-          <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: 4, marginBottom: 20 }}>
-            {[{ key: "month", label: "Monthly · $6/mo" }, { key: "year", label: "Yearly · $50/yr" }].map(p => (
-              <button key={p.key} onClick={() => setBillingInterval(p.key)}
-                style={{ flex: 1, background: billingInterval === p.key ? C.card : "none", border: billingInterval === p.key ? `1px solid ${C.border}` : "1px solid transparent", borderRadius: 4, padding: "10px 8px", cursor: "pointer", color: billingInterval === p.key ? C.text : C.textDim, fontSize: 12, fontFamily: "inherit", transition: "all .15s" }}>
-                {p.label}
-                {p.key === "year" && <span style={{ marginLeft: 6, fontSize: 10, color: "#10b981" }}>save 30%</span>}
-              </button>
-            ))}
-          </div>
-
-          {/* What you get */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "16px 18px", marginBottom: 20 }}>
-            {["Visual daily schedule", "Tasks that roll forward", "Journal & end-of-day debrief", "Calendar with smart surfacing", "Patterns & energy tracking"].map(f => (
-              <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0", fontSize: 12, color: C.textMid }}>
-                <span style={{ color: "#10b981", fontSize: 14 }}>✓</span> {f}
-              </div>
-            ))}
-          </div>
-
-          {error && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: 10, background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{error}</div>}
-
-          <button onClick={handleSubscribe} disabled={loading}
-            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "14px 16px", fontSize: 13, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit", letterSpacing: 0.5, opacity: loading ? 0.7 : 1, marginBottom: 12 }}>
-            {loading ? "redirecting to checkout..." : "Start 7-day free trial →"}
-          </button>
-
-          <div style={{ textAlign: "center", fontSize: 10, color: C.textDim }}>
-            Secured by Stripe · no commitment · cancel anytime
-          </div>
-        </div>
-      )}
-
-      <button onClick={onSignOut} style={{ marginTop: 40, background: "none", border: "none", color: C.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
-        sign out
-      </button>
-    </div>
-  );
-}
-
-// -- Auth Screen ---------------------------------------------------------------
-function AuthScreen() {
+// -- Auth Screen (also handles paywall for signed-in users without a sub) ------
+function AuthScreen({ session = null, onSignOut = null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("signin");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Subscribe flow (used when session exists but no active sub)
+  const [billingInterval, setBillingInterval] = useState("month");
+  const [subLoading, setSubLoading] = useState(false);
+  const [subError, setSubError] = useState("");
+  const checkoutStatus = new URLSearchParams(window.location.search).get("checkout");
+
+  async function handleSubscribe() {
+    setSubLoading(true); setSubError("");
+    try {
+      const res = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: session.user.id, interval: billingInterval }),
+      });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; }
+      else { setSubError(data.error || "Something went wrong."); }
+    } catch (e) { setSubError("Connection error. Try again."); }
+    setSubLoading(false);
+  }
 
   async function handleAuth() {
     setError(""); setSuccessMsg(""); setLoading(true);
@@ -1398,71 +1326,118 @@ function AuthScreen() {
           </div>
         </div>
 
-        {/* Right — auth form */}
+        {/* Right — auth form or subscribe card depending on session state */}
         <div id="auth-form" className="a5" style={{ background: "#111113", border: "1px solid #222226", borderRadius: 8, padding: 28, position: "relative" }}>
           <div style={{ position: "absolute", top: -1, left: 24, right: 24, height: 2, background: "linear-gradient(90deg, transparent, #e8365d, transparent)", borderRadius: 1 }} />
 
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 20 }}>
-            {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset password"}
-          </div>
+          {session ? (
+            /* ---- Subscribe card (signed in, no active sub) ---- */
+            checkoutStatus === "success" ? (
+              <div style={{ textAlign: "center", padding: "16px 0" }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: "#e8365d", marginBottom: 8 }}>YOU'RE IN</div>
+                <div style={{ fontSize: 13, color: "#f0f0f2", marginBottom: 6 }}>Subscription active.</div>
+                <div style={{ fontSize: 11, color: "#888896", marginBottom: 24 }}>Refresh to open Flux.</div>
+                <button className="auth-btn-primary" onClick={() => window.location.href = "/"}>Open Flux &rarr;</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Start your free trial</div>
+                <div style={{ fontSize: 11, color: "#50505a", marginBottom: 20 }}>7 days free, then choose a plan. Cancel anytime.</div>
 
-          {mode !== "forgot" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
-                <input className="auth-input" type="email" placeholder="you@example.com" value={email}
-                  onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                  disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+                <div style={{ display: "flex", background: "#0e0e0f", border: "1px solid #2a2a2e", borderRadius: 5, padding: 3, marginBottom: 16 }}>
+                  {[{ key: "month", label: "Monthly", sub: "$6 / mo" }, { key: "year", label: "Yearly", sub: "$50 / yr" }].map(p => (
+                    <button key={p.key} onClick={() => setBillingInterval(p.key)}
+                      style={{ flex: 1, background: billingInterval === p.key ? "#1a1a1e" : "none", border: billingInterval === p.key ? "1px solid #2a2a2e" : "1px solid transparent", borderRadius: 4, padding: "9px 6px", cursor: "pointer", fontFamily: "inherit", transition: "all .15s", textAlign: "center" }}>
+                      <div style={{ fontSize: 10, color: billingInterval === p.key ? "#f0f0f2" : "#50505a", letterSpacing: 1 }}>{p.label}</div>
+                      <div style={{ fontSize: 12, color: billingInterval === p.key ? "#e8365d" : "#44444e", marginTop: 2 }}>{p.sub}
+                        {p.key === "year" && <span style={{ fontSize: 9, color: "#10b981", marginLeft: 5 }}>save 30%</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {subError && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{subError}</div>}
+
+                <button className="auth-btn-primary" onClick={handleSubscribe} disabled={subLoading}>
+                  {subLoading ? "redirecting..." : "Start free trial →"}
+                </button>
+
+                <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
+                  secured by Stripe &middot; no commitment
+                </div>
+
+                <button onClick={onSignOut}
+                  style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", color: "#2a2a2e", fontSize: 9, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
+                  sign out
+                </button>
               </div>
-              <div>
-                <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
-                <input className="auth-input" type="password" placeholder={mode === "signup" ? "min 6 characters" : "your password"} value={password}
-                  onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                  disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
-              </div>
-            </div>
+            )
           ) : (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
-              <input className="auth-input" type="email" placeholder="your account email" value={email}
-                onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
-              <div style={{ fontSize: 10, color: "#50505a", marginTop: 8 }}>we will send a reset link to this address</div>
+            /* ---- Sign in / sign up / forgot card ---- */
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 20 }}>
+                {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset password"}
+              </div>
+
+              {mode !== "forgot" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+                    <input className="auth-input" type="email" placeholder="you@example.com" value={email}
+                      onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                      disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
+                    <input className="auth-input" type="password" placeholder={mode === "signup" ? "min 6 characters" : "your password"} value={password}
+                      onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                      disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+                  <input className="auth-input" type="email" placeholder="your account email" value={email}
+                    onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                    disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+                  <div style={{ fontSize: 10, color: "#50505a", marginTop: 8 }}>we will send a reset link to this address</div>
+                </div>
+              )}
+
+              {error && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{error}</div>}
+              {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button className="auth-btn-primary" onClick={handleAuth}
+                  disabled={loading || !email || (mode !== "forgot" && !password)}>
+                  {loading ? "one moment..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+                </button>
+
+                {mode !== "forgot" && (
+                  <button className="auth-btn-ghost" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}>
+                    {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}
+                  </button>
+                )}
+
+                {mode === "signin" && (
+                  <button className="auth-btn-ghost" style={{ fontSize: 10, padding: "8px 16px" }}
+                    onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}>
+                    Forgot password?
+                  </button>
+                )}
+
+                {mode === "forgot" && (
+                  <button className="auth-btn-ghost" onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}>
+                    Back to sign in
+                  </button>
+                )}
+              </div>
+
+              <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 18, textAlign: "center", letterSpacing: 1 }}>
+                your data is yours &middot; private by design
+              </div>
             </div>
           )}
-
-          {error && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{error}</div>}
-          {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button className="auth-btn-primary" onClick={handleAuth}
-              disabled={loading || !email || (mode !== "forgot" && !password)}>
-              {loading ? "one moment..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-            </button>
-
-            {mode !== "forgot" && (
-              <button className="auth-btn-ghost" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}>
-                {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}
-              </button>
-            )}
-
-            {mode === "signin" && (
-              <button className="auth-btn-ghost" style={{ fontSize: 10, padding: "8px 16px" }}
-                onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}>
-                Forgot password?
-              </button>
-            )}
-
-            {mode === "forgot" && (
-              <button className="auth-btn-ghost" onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}>
-                Back to sign in
-              </button>
-            )}
-          </div>
-
-          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 18, textAlign: "center", letterSpacing: 1 }}>
-            your data is yours &middot; private by design
-          </div>
         </div>
       </section>
 
@@ -1943,8 +1918,7 @@ export default function App() {
   const hasActiveSub = userSub && (userSub.status === "active" || userSub.status === "trialing");
 
   if (authLoading || subLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
-  if (!session) return <AuthScreen />;
-  if (!hasActiveSub) return <Paywall session={session} onSignOut={() => supabase.auth.signOut()} />;
+  if (!session || !hasActiveSub) return <AuthScreen session={session} onSignOut={() => supabase.auth.signOut()} />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans','system-ui',sans-serif", fontSize: "13px" }}>
