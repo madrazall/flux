@@ -1262,7 +1262,7 @@ function Paywall({ session, onSignOut }) {
   );
 }
 
-// â"€â"€ Auth Screen â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// -- Auth Screen ---------------------------------------------------------------
 function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1270,125 +1270,295 @@ function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
   async function handleAuth() {
     setError(""); setSuccessMsg(""); setLoading(true);
     try {
       if (mode === "signup") {
         const { error: e } = await supabase.auth.signUp({ email, password });
         if (e) setError(e.message);
-        else { setSuccessMsg("Account created. You can sign in now with your email and password."); setTimeout(() => { setMode("signin"); setPassword(""); }, 2000); }
+        else { setSuccessMsg("Account created. Sign in below."); setTimeout(() => { setMode("signin"); setPassword(""); }, 2000); }
       } else if (mode === "signin") {
         const { error: e } = await supabase.auth.signInWithPassword({ email, password });
         if (e) setError(e.message);
       } else if (mode === "forgot") {
         const { error: e } = await supabase.auth.resetPasswordForEmail(email);
         if (e) setError(e.message);
-        else { setSuccessMsg("Password reset link sent to your email."); setEmail(""); }
+        else { setSuccessMsg("Reset link sent. Check your email."); setEmail(""); }
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
   }
+
+  const inputStyle = {
+    width: "100%", background: "#0e0e0f", border: "1px solid #2a2a2e",
+    color: "#f0f0f2", borderRadius: 4, padding: "12px 14px", fontSize: 13,
+    outline: "none", fontFamily: "'DM Mono',monospace", transition: "border-color .15s",
+    opacity: loading ? 0.6 : 1,
+  };
+
+  const FEATURES = [
+    { num: "01", title: "A schedule that moves with you", desc: "Visual time blocks sized by duration. Drag to reorder when your day shifts. Time is a suggestion — structure is the point." },
+    { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet asterisk after a few days. A nudge, not a judgment." },
+    { num: "03", title: "Tags that earn their place", desc: "Four defaults built in. Create any tag you need — use it enough and it becomes a real category with its own colour and tracking." },
+    { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields, one archive. Tomorrow starts clean every time." },
+    { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It surfaces in your day when it matters. You never have to remember to check." },
+    { num: "06", title: "Patterns, on your terms", desc: "Unlocks after a few days. Energy trends, recurring friction, where your time actually goes. Signal, not noise." },
+  ];
+
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Mono','Fira Code','Courier New',monospace", position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", overflowX: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        .glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse at center,${C.accent}18 0%,transparent 70%);pointer-events:none;z-index:0}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        .feature-card{background:${C.card};border:1px solid ${C.border};padding:28px 24px;position:relative;overflow:hidden;transition:border-color .2s}
-        .feature-card:hover{border-color:${C.accent}30}
-        .feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:${C.accent};transform:scaleX(0);transform-origin:left;transition:transform .3s ease}
-        .feature-card:hover::before{transform:scaleX(1)}
+        html{scroll-behavior:smooth}
+        .auth-noise{position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
+        .auth-glow{position:fixed;top:-240px;left:50%;transform:translateX(-50%);width:900px;height:700px;background:radial-gradient(ellipse at center,#e8365d16 0%,transparent 70%);pointer-events:none;z-index:0}
+        .auth-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:18px 48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff06;backdrop-filter:blur(14px);background:#0a0a0b88}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        .a1{opacity:0;animation:fadeUp .6s ease .15s forwards}
+        .a2{opacity:0;animation:fadeUp .7s ease .3s forwards}
+        .a3{opacity:0;animation:fadeUp .7s ease .45s forwards}
+        .a4{opacity:0;animation:fadeUp .7s ease .6s forwards}
+        .a5{opacity:0;animation:fadeUp .7s ease .75s forwards}
+        .feat-card{background:#161619;border:1px solid #1e1e22;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .25s,transform .25s}
+        .feat-card:hover{border-color:#e8365d28;transform:translateY(-2px)}
+        .feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:#e8365d;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
+        .feat-card:hover::before{transform:scaleX(1)}
+        .price-card{background:#161619;border:1px solid #1e1e22;padding:28px 24px;border-radius:6px;transition:border-color .2s,transform .2s;cursor:default}
+        .price-card:hover{border-color:#e8365d40;transform:translateY(-2px)}
+        .price-card.featured{border-color:#e8365d60;background:#1a0f13}
+        .auth-input:focus{border-color:#e8365d!important}
+        .auth-btn-primary{width:100%;background:#e8365d;border:none;color:#fff;border-radius:4px;padding:13px 16px;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:'DM Mono',monospace;transition:background .15s,opacity .15s}
+        .auth-btn-primary:hover:not(:disabled){background:#ff4d70}
+        .auth-btn-primary:disabled{opacity:.5;cursor:default}
+        .auth-btn-ghost{width:100%;background:none;border:1px solid #2a2a2e;color:#50505a;border-radius:4px;padding:11px 16px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;transition:border-color .15s,color .15s}
+        .auth-btn-ghost:hover:not(:disabled){border-color:#e8365d40;color:#9090a0}
+        .scroll-hint{display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.3;animation:fadeIn 1s ease 2s forwards;opacity:0}
+        @media(max-width:768px){
+          .auth-nav{padding:16px 20px}
+          .auth-hero{grid-template-columns:1fr!important;padding:100px 20px 60px!important}
+          .auth-features{padding:60px 20px!important}
+          .auth-pricing{padding:60px 20px!important}
+          .auth-manifesto{padding:48px 20px!important}
+          .auth-manifesto-inner{grid-template-columns:1fr!important}
+          .auth-footer{padding:24px 20px!important;flex-direction:column;gap:8px;text-align:center}
+        }
       `}</style>
-      <div className="glow" />
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.border}40`, backdropFilter: "blur(12px)", background: C.bg + "90" }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: C.accent }}>FLUX</div>
-      </div>
-      <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", padding: "120px 48px 80px", maxWidth: 960, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: C.accent, textTransform: "uppercase", marginBottom: 24, opacity: 0, animation: "fadeUp .6s ease .2s forwards" }}>A different kind of daily</div>
-        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .95, letterSpacing: -2, color: C.text, marginBottom: 8, opacity: 0, animation: "fadeUp .7s ease .35s forwards" }}>
-          Built for brains<br /><em style={{ fontStyle: "italic", color: C.accent }}>in</em><br />
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(56px, 9vw, 108px)", letterSpacing: 6, display: "block" }}>FLUX</span>
-        </h1>
-        <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.8, maxWidth: 440, marginTop: 28, marginBottom: 52, opacity: 0, animation: "fadeUp .7s ease .5s forwards" }}>
-          A daily planner that bends instead of breaks. Structure without the rigidity. Flexible blocks, real data about how your days actually go, and a rhythm that works <em>with</em> you.
-        </p>
-        <div style={{ opacity: 0, animation: "fadeUp .7s ease .65s forwards", width: "100%", maxWidth: 360 }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: C.textDim, textTransform: "uppercase", marginBottom: 16 }}>
-            {mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}
+
+      <div className="auth-noise" />
+      <div className="auth-glow" />
+
+      {/* Nav */}
+      <nav className="auth-nav">
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <span style={{ fontSize: 10, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>by madrazall</span>
+          <button onClick={() => { setMode("signin"); document.getElementById("auth-form")?.scrollIntoView({ behavior: "smooth" }); }}
+            style={{ fontSize: 10, letterSpacing: 1.5, color: "#50505a", textTransform: "uppercase", textDecoration: "none", border: "1px solid #2a2a2e", padding: "7px 14px", borderRadius: 3, cursor: "pointer", background: "none", fontFamily: "inherit", transition: "all .15s" }}
+            onMouseEnter={e => { e.target.style.borderColor = "#e8365d"; e.target.style.color = "#e8365d"; }}
+            onMouseLeave={e => { e.target.style.borderColor = "#2a2a2e"; e.target.style.color = "#50505a"; }}>
+            sign in
+          </button>
+        </div>
+      </nav>
+
+      {/* Hero — two column */}
+      <section className="auth-hero" style={{ position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "1fr 420px", gap: 64, alignItems: "center", maxWidth: 1040, margin: "0 auto", padding: "130px 48px 80px" }}>
+
+        {/* Left — copy */}
+        <div>
+          <div className="a1" style={{ fontSize: 10, letterSpacing: 4, color: "#e8365d", textTransform: "uppercase", marginBottom: 24 }}>A different kind of daily</div>
+          <h1 className="a2" style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(48px, 7vw, 88px)", lineHeight: .92, letterSpacing: -2, color: "#f0f0f2", marginBottom: 0 }}>
+            Built for brains<br />
+            <em style={{ fontStyle: "italic", color: "#e8365d" }}>in</em>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(54px, 8.5vw, 104px)", letterSpacing: 6, display: "block", fontStyle: "normal", color: "#f0f0f2" }}>FLUX</span>
+          </h1>
+          <p className="a3" style={{ fontSize: 13, color: "#888896", lineHeight: 1.9, maxWidth: 420, marginTop: 28, marginBottom: 12 }}>
+            A daily planner and journal that bends instead of breaks. Flexible structure, real data about how your days actually go, and a system that works with you.
+          </p>
+          <p className="a3" style={{ fontSize: 13, color: "#888896", lineHeight: 1.9, maxWidth: 420, marginBottom: 40 }}>
+            Built to reduce noise and overstimulation. Simple by design. Yours by default.
+          </p>
+          <div className="a4" style={{ display: "flex", gap: 24, alignItems: "center" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>7</div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>day free trial</div>
+            </div>
+            <div style={{ width: 1, height: 40, background: "#2a2a2e" }} />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>$6</div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>per month</div>
+            </div>
+            <div style={{ width: 1, height: 40, background: "#2a2a2e" }} />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>$50</div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>per year</div>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 10 }}>
-            {mode === "forgot" ? "Enter your account email to reset your password." : "Use your email and password. No magic link required."}
+        </div>
+
+        {/* Right — auth form */}
+        <div id="auth-form" className="a5" style={{ background: "#111113", border: "1px solid #222226", borderRadius: 8, padding: 28, position: "relative" }}>
+          <div style={{ position: "absolute", top: -1, left: 24, right: 24, height: 2, background: "linear-gradient(90deg, transparent, #e8365d, transparent)", borderRadius: 1 }} />
+
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 20 }}>
+            {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset password"}
           </div>
-          {mode === "forgot" ? (
-            <div style={{ marginBottom: 16 }}>
-              <input type="email" placeholder="your email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1, marginBottom: 8 }} />
-              <div style={{ fontSize: 11, color: C.textDim }}>we'll send you a link to reset your password</div>
+
+          {mode !== "forgot" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+                <input className="auth-input" type="email" placeholder="you@example.com" value={email}
+                  onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                  disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
+                <input className="auth-input" type="password" placeholder={mode === "signup" ? "min 6 characters" : "your password"} value={password}
+                  onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                  disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+              </div>
             </div>
           ) : (
-            <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-              <input type="email" placeholder="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }} />
-              <input type="password" placeholder="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()} disabled={loading}
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "12px 14px", fontSize: 13, outline: "none", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }} />
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+              <input className="auth-input" type="email" placeholder="your account email" value={email}
+                onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
+                disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
+              <div style={{ fontSize: 10, color: "#50505a", marginTop: 8 }}>we will send a reset link to this address</div>
             </div>
           )}
-          {error && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, padding: 10, background: "#1f0000", borderRadius: 4, textAlign: "center" }}>{error}</div>}
-          {successMsg && <div style={{ fontSize: 12, color: "#10b981", marginBottom: 12, padding: 10, background: "#001f00", borderRadius: 4, textAlign: "center" }}>{successMsg}</div>}
-          <button onClick={handleAuth} disabled={loading || !email || (mode !== "forgot" && !password)}
-            style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "12px 16px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", opacity: loading || !email || (mode !== "forgot" && !password) ? 0.6 : 1, marginBottom: 8 }}>
-            {loading ? "loading..." : mode === "signin" ? "Sign In With Password" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-          </button>
-          {mode !== "forgot" && <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }} disabled={loading}
-            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
-            {mode === "signin" ? "First time? Create Account" : "Back to Sign In"}
-          </button>}
-          {mode === "signin" && <button onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }} disabled={loading}
-            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            Forgot password?
-          </button>}
-          {mode === "forgot" && <button onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }} disabled={loading}
-            style={{ width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "12px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            Back to Sign In
-          </button>}
-          <div style={{ fontSize: 10, color: C.textDim, marginTop: 12 }}>your data is yours Â· private by design</div>
+
+          {error && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{error}</div>}
+          {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button className="auth-btn-primary" onClick={handleAuth}
+              disabled={loading || !email || (mode !== "forgot" && !password)}>
+              {loading ? "one moment..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+            </button>
+
+            {mode !== "forgot" && (
+              <button className="auth-btn-ghost" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}>
+                {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}
+              </button>
+            )}
+
+            {mode === "signin" && (
+              <button className="auth-btn-ghost" style={{ fontSize: 10, padding: "8px 16px" }}
+                onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}>
+                Forgot password?
+              </button>
+            )}
+
+            {mode === "forgot" && (
+              <button className="auth-btn-ghost" onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}>
+                Back to sign in
+              </button>
+            )}
+          </div>
+
+          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 18, textAlign: "center", letterSpacing: 1 }}>
+            your data is yours &middot; private by design
+          </div>
         </div>
       </section>
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "0 48px" }}>
-        <hr style={{ border: "none", borderTop: `1px solid ${C.border}` }} />
+
+      {/* Scroll hint */}
+      <div style={{ display: "flex", justifyContent: "center", paddingBottom: 48, position: "relative", zIndex: 1 }}>
+        <div className="scroll-hint" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: 0, animation: "fadeIn 1s ease 1.8s forwards" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#44444e", textTransform: "uppercase" }}>scroll</div>
+          <div style={{ width: 1, height: 32, background: "linear-gradient(to bottom, #44444e, transparent)" }} />
+        </div>
       </div>
-      <section style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "80px 48px" }}>
-        <div style={{ fontSize: 9, letterSpacing: 4, color: C.textDim, textTransform: "uppercase", marginBottom: 48 }}>What's inside</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
-          {[
-            { num: "01", title: "A schedule that moves with you", desc: "Visual time blocks sized by duration. Drag to move, drag the edge to resize. See your day at a glance." },
-            { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet nudge, not a panic button." },
-            { num: "03", title: "Tags that earn their place", desc: "Start with four defaults. Create any tag — use it enough and it becomes a tracked category." },
-            { num: "04", title: "End of day debrief", desc: "A compact day summary and one calm prompt for tomorrow. Extra reflection stays optional." },
-            { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It shows up in your day when it matters." },
-            { num: "06", title: "Patterns on your terms", desc: "After a few days, see energy trends, recurring friction, where your time actually goes." }
-          ].map(f => (
-            <div key={f.num} className="feature-card">
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: C.accent, opacity: .5, marginBottom: 14 }}>{f.num}</div>
-              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{f.title}</div>
-              <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>{f.desc}</div>
+
+      {/* Divider */}
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 48px" }}>
+        <div style={{ height: 1, background: "linear-gradient(to right, transparent, #2a2a2e 20%, #2a2a2e 80%, transparent)" }} />
+      </div>
+
+      {/* Features */}
+      <section className="auth-features" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 48 }}>What is inside</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2 }}>
+          {FEATURES.map(f => (
+            <div key={f.num} className="feat-card">
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: "#e8365d", opacity: .45, marginBottom: 14 }}>{f.num}</div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700, color: "#f0f0f2", marginBottom: 10, lineHeight: 1.25 }}>{f.title}</div>
+              <div style={{ fontSize: 11, color: "#888896", lineHeight: 1.85 }}>{f.desc}</div>
             </div>
           ))}
         </div>
       </section>
-      <div style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "60px 48px", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${C.accent}08 0%, transparent 60%)`, pointerEvents: "none" }} />
-        <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 2fr", gap: 48, alignItems: "center", position: "relative", zIndex: 1 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, letterSpacing: 3, color: C.accent, lineHeight: .9, opacity: .15 }}>FLUX</div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.5vw, 26px)", lineHeight: 1.5, color: C.textMid, fontStyle: "italic" }}>
-            This isn't productivity theater. It's about understanding <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> rhythm. By tracking what you actually do and how you feel, you build <strong style={{ color: C.text, fontStyle: "normal" }}>your</strong> operating system.
+
+      {/* Pricing */}
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 48px" }}>
+        <div style={{ height: 1, background: "linear-gradient(to right, transparent, #2a2a2e 20%, #2a2a2e 80%, transparent)" }} />
+      </div>
+      <section className="auth-pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 12 }}>Pricing</div>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(28px, 4vw, 42px)", color: "#f0f0f2", marginBottom: 48, lineHeight: 1.2 }}>
+          Simple. No tiers.<br /><em style={{ color: "#e8365d" }}>Everything included.</em>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, maxWidth: 680 }}>
+          <div className="price-card">
+            <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase", marginBottom: 16 }}>Monthly</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>$6</div>
+            <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>per month, cancel anytime</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {["Full access to everything", "7-day free trial", "Cancel any time"].map(t => (
+                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896" }}>
+                  <span style={{ color: "#e8365d", fontSize: 12 }}>+</span> {t}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="price-card featured">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase" }}>Yearly</div>
+              <div style={{ fontSize: 9, letterSpacing: 1, color: "#e8365d", border: "1px solid #e8365d60", padding: "3px 8px", borderRadius: 2 }}>save 30%</div>
+            </div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>$50</div>
+            <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>per year, ~$4.17/mo</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {["Full access to everything", "7-day free trial", "Best value"].map(t => (
+                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896" }}>
+                  <span style={{ color: "#e8365d", fontSize: 12 }}>+</span> {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 32, fontSize: 11, color: "#44444e" }}>
+          Start with a 7-day free trial. No payment info needed until you decide to stay.
+        </div>
+      </section>
+
+      {/* Manifesto */}
+      <div className="auth-manifesto" style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22", borderBottom: "1px solid #1e1e22", padding: "60px 48px", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #e8365d07 0%, transparent 55%)", pointerEvents: "none" }} />
+        <div className="auth-manifesto-inner" style={{ maxWidth: 1040, margin: "0 auto", display: "grid", gridTemplateColumns: "180px 1fr", gap: 64, alignItems: "center", position: "relative", zIndex: 1 }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 64, letterSpacing: 3, color: "#e8365d", lineHeight: .85, opacity: .1, userSelect: "none" }}>WHY<br />FLUX</div>
+          <div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.2vw, 26px)", lineHeight: 1.6, color: "#888896", fontStyle: "italic", marginBottom: 20 }}>
+              Most planners are built for people who <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>don't need planners.</strong> Flux is built around the reality that some days the structure is what gets you through and the data is what helps you <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>build better ones.</strong>
+            </div>
+            <div style={{ fontSize: 11, color: "#44444e", letterSpacing: 1 }}>private &middot; no ads &middot; your data is yours</div>
           </div>
         </div>
       </div>
-      <footer style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: C.textDim }}>FLUX</div>
-        <div style={{ fontSize: 10, color: C.textDim }}>built with care Â· <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: "none" }}>support us</a></div>
+
+      {/* Footer */}
+      <footer className="auth-footer" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "28px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: "#2a2a2e" }}>FLUX</div>
+        <div style={{ fontSize: 10, color: "#2a2a2e", letterSpacing: .5 }}>
+          by <a href="https://madrazallbuilt.com" target="_blank" rel="noopener noreferrer" style={{ color: "#44444e", textDecoration: "none" }}>madrazall</a>
+          &nbsp;&middot;&nbsp;
+          <a href="mailto:madrazodarcy@gmail.com" style={{ color: "#44444e", textDecoration: "none" }}>contact</a>
+        </div>
       </footer>
     </div>
   );
