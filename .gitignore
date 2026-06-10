@@ -1,0 +1,6 @@
+node_modules
+build
+.env
+.claude/
+.vscode/
+app_backup.txt
