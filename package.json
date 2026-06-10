@@ -2,7 +2,6 @@
   "name": "flux",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://madrazallbuilt.com/fluxdaily",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "react": "^18.2.0",
