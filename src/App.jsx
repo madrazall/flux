@@ -1597,16 +1597,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, archiveTime, autoArchivedToday, blocks, tasks, wins, hard, dayNote, journalEntries]);
 
-  async function loadAllJournalEntries() {
-    if (!session || allJournalEntries.length > 0) return;
-    const { data } = await supabase
-      .from("journal_entries")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .is("deleted_at", null)
-    if (data) setAllJournalEntries(data);
-  }
-
   async function deleteArchiveDay(dayKey) {
     if (!session) return;
     const uid = session.user.id;
