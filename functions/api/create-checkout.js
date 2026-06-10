@@ -46,6 +46,7 @@ export async function onRequestPost(context) {
       "subscription_data[trial_period_days]": "7",
       "subscription_data[metadata][userId]": userId,
       "metadata[userId]": userId,
+      "allow_promotion_codes": "true",
       "success_url": `${appUrl}/?checkout=success`,
       "cancel_url": `${appUrl}/?checkout=cancel`,
     });
