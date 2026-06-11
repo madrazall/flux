@@ -45,12 +45,8 @@ export async function onRequestPost(context) {
       "line_items[0][quantity]": "1",
       "subscription_data[trial_period_days]": "7",
       "subscription_data[metadata][userId]": userId,
-      // If the trial ends with no card on file, cancel instead of leaving an unpaid sub
-      "subscription_data[trial_settings][end_behavior][missing_payment_method]": "cancel",
       "metadata[userId]": userId,
       "allow_promotion_codes": "true",
-      // Skip card entry when nothing is due (free trial / 100%-off promo codes)
-      "payment_method_collection": "if_required",
       "success_url": `${appUrl}/?checkout=success`,
       "cancel_url": `${appUrl}/?checkout=cancel`,
     });
