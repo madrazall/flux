@@ -1167,290 +1167,247 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// -- Paywall is merged into AuthScreen below --
-
-// -- Auth Screen (also handles paywall for signed-in users without a sub) ------
+// -- Auth / Landing / Sign-up / Sign-in screens --------------------------------
 function AuthScreen({ session = null, onSignOut = null }) {
+  // page: "landing" | "signin" | "signup" | "subscribe" | "forgot"
+  const [page, setPage] = useState(session ? "subscribe" : "landing");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("signin");
+  const [billingInterval, setBillingInterval] = useState("year");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Subscribe flow (used when session exists but no active sub)
-  const [billingInterval, setBillingInterval] = useState("month");
-  const [subLoading, setSubLoading] = useState(false);
-  const [subError, setSubError] = useState("");
-  async function handleSubscribe() {
-    setSubLoading(true); setSubError("");
+  function go(p) { setPage(p); setError(""); setSuccessMsg(""); }
+
+  async function handleSignIn() {
+    setError(""); setLoading(true);
+    const { error: e } = await supabase.auth.signInWithPassword({ email, password });
+    if (e) setError(e.message);
+    setLoading(false);
+  }
+
+  async function handleForgot() {
+    setError(""); setLoading(true);
+    const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+    if (e) setError(e.message);
+    else { setSuccessMsg("Reset link sent. Check your email."); setEmail(""); }
+    setLoading(false);
+  }
+
+  async function handleSignUp() {
+    setError(""); setLoading(true);
+    try {
+      const { data, error: e } = await supabase.auth.signUp({ email, password });
+      if (e) { setError(e.message); setLoading(false); return; }
+      const userId = data?.user?.id;
+      if (!userId) { setError("Account created. Sign in to continue."); setLoading(false); return; }
+      const res = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, interval: billingInterval }),
+      });
+      const checkout = await res.json();
+      if (checkout.url) { window.location.href = checkout.url; }
+      else { setError(checkout.error || "Could not start checkout. Sign in to continue."); }
+    } catch { setError("Connection error. Try again."); }
+    setLoading(false);
+  }
+
+  async function handleSubscribeExisting() {
+    setError(""); setLoading(true);
     try {
       const res = await fetch("/api/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: session.user.id, interval: billingInterval }),
       });
-      const data = await res.json();
-      if (data.url) { window.location.href = data.url; }
-      else { setSubError(data.error || "Something went wrong."); }
-    } catch (e) { setSubError("Connection error. Try again."); }
-    setSubLoading(false);
-  }
-
-  async function handleAuth() {
-    setError(""); setSuccessMsg(""); setLoading(true);
-    try {
-      if (mode === "signup") {
-        const { error: e } = await supabase.auth.signUp({ email, password });
-        if (e) setError(e.message);
-        else { setSuccessMsg("Account created. Sign in below."); setTimeout(() => { setMode("signin"); setPassword(""); }, 2000); }
-      } else if (mode === "signin") {
-        const { error: e } = await supabase.auth.signInWithPassword({ email, password });
-        if (e) setError(e.message);
-      } else if (mode === "forgot") {
-        const { error: e } = await supabase.auth.resetPasswordForEmail(email);
-        if (e) setError(e.message);
-        else { setSuccessMsg("Reset link sent. Check your email."); setEmail(""); }
-      }
-    } catch (e) { setError(e.message); }
+      const checkout = await res.json();
+      if (checkout.url) { window.location.href = checkout.url; }
+      else { setError(checkout.error || "Something went wrong."); }
+    } catch { setError("Connection error. Try again."); }
     setLoading(false);
   }
 
-  const inputStyle = {
+  const iStyle = (dis) => ({
     width: "100%", background: "#0e0e0f", border: "1px solid #2a2a2e",
     color: "#f0f0f2", borderRadius: 4, padding: "12px 14px", fontSize: 13,
     outline: "none", fontFamily: "'DM Mono',monospace", transition: "border-color .15s",
-    opacity: loading ? 0.6 : 1,
-  };
+    opacity: dis ? 0.5 : 1, display: "block",
+  });
 
   const FEATURES = [
     { num: "01", title: "A schedule that moves with you", desc: "Visual time blocks sized by duration. Drag to reorder when your day shifts. Time is a suggestion — structure is the point." },
     { num: "02", title: "Tasks that carry forward", desc: "Undone tasks roll to tomorrow when you archive. A quiet asterisk after a few days. A nudge, not a judgment." },
-    { num: "03", title: "Tags that earn their place", desc: "Four defaults built in. Create any tag you need — use it enough and it becomes a real category with its own colour and tracking." },
-    { num: "04", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields, one archive. Tomorrow starts clean every time." },
-    { num: "05", title: "A calendar that finds you", desc: "Add an appointment months out. It surfaces in your day when it matters. You never have to remember to check." },
-    { num: "06", title: "Patterns, on your terms", desc: "Unlocks after a few days. Energy trends, recurring friction, where your time actually goes. Signal, not noise." },
+    { num: "03", title: "Your archive is a real record", desc: "When you archive your day, every time block saves with it. Went over 50 minutes on the same task three times this week? That surfaces. Coffee with your bestie every Wednesday? Flux will suggest making it recurring." },
+    { num: "04", title: "Tags that earn their place", desc: "Four defaults built in. Create any tag you need — use it enough and it becomes a real tracked category with its own colour." },
+    { num: "05", title: "End of day debrief", desc: "Wins, hard stuff, brain dump. Three fields, one archive. Tomorrow starts clean every time." },
+    { num: "06", title: "A calendar that finds you", desc: "Add an appointment months out. It surfaces in your day when it matters. You never have to remember to check." },
+    { num: "07", title: "Patterns, on your terms", desc: "Unlocks after a few days. Energy trends, recurring friction, where your time actually goes. Signal, not noise." },
   ];
 
-  return (
+  const SHARED_CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    .fx-noise{position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
+    .fx-glow{position:fixed;top:-240px;left:50%;transform:translateX(-50%);width:900px;height:700px;background:radial-gradient(ellipse at center,#e8365d16 0%,transparent 70%);pointer-events:none;z-index:0}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .a1{opacity:0;animation:fadeUp .6s ease .1s forwards}
+    .a2{opacity:0;animation:fadeUp .7s ease .25s forwards}
+    .a3{opacity:0;animation:fadeUp .7s ease .4s forwards}
+    .a4{opacity:0;animation:fadeUp .7s ease .55s forwards}
+    .a5{opacity:0;animation:fadeUp .7s ease .7s forwards}
+    .feat-card{background:#161619;border:1px solid #1e1e22;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .25s,transform .2s}
+    .feat-card:hover{border-color:#e8365d30;transform:translateY(-2px)}
+    .feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:#e8365d;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
+    .feat-card:hover::before{transform:scaleX(1)}
+    .fx-input:focus{border-color:#e8365d!important;outline:none}
+    .fx-btn{width:100%;border:none;border-radius:4px;padding:13px 16px;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:'DM Mono',monospace;transition:all .15s}
+    .fx-btn-red{background:#e8365d;color:#fff}
+    .fx-btn-red:hover:not(:disabled){background:#ff4d70}
+    .fx-btn-red:disabled{opacity:.5;cursor:default}
+    .fx-btn-ghost{background:none;border:1px solid #2a2a2e;color:#50505a}
+    .fx-btn-ghost:hover:not(:disabled){border-color:#e8365d40;color:#9090a0}
+    .fx-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:18px 48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff06;backdrop-filter:blur(14px);background:#0a0a0b88}
+    @media(max-width:680px){
+      .fx-nav{padding:14px 20px}
+      .fx-page{padding:100px 20px 60px!important}
+      .fx-subpage{padding:80px 20px 40px!important;max-width:100%!important}
+      .fx-grid-3{grid-template-columns:1fr!important}
+      .fx-manifesto-inner{grid-template-columns:1fr!important}
+      .fx-footer{padding:24px 20px!important;flex-direction:column;gap:8px;text-align:center}
+    }
+  `;
+
+  // ---- shared nav ----
+  const Nav = ({ showBack, backLabel, onBack }) => (
+    <nav className="fx-nav">
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: "#e8365d", cursor: "pointer" }}
+        onClick={() => go("landing")}>FLUX</div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {showBack ? (
+          <button onClick={onBack} style={{ fontSize: 10, letterSpacing: 1, color: "#50505a", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            &larr; {backLabel || "back"}
+          </button>
+        ) : (
+          <>
+            <button onClick={() => go("signin")}
+              style={{ fontSize: 10, letterSpacing: 1.5, color: "#50505a", textTransform: "uppercase", border: "1px solid #2a2a2e", padding: "7px 14px", borderRadius: 3, cursor: "pointer", background: "none", fontFamily: "inherit", transition: "all .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#e8365d"; e.currentTarget.style.color = "#e8365d"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a2a2e"; e.currentTarget.style.color = "#50505a"; }}>
+              sign in
+            </button>
+            <button onClick={() => go("signup")}
+              style={{ fontSize: 10, letterSpacing: 1.5, color: "#fff", textTransform: "uppercase", border: "1px solid #e8365d", padding: "7px 14px", borderRadius: 3, cursor: "pointer", background: "#e8365d", fontFamily: "inherit", transition: "all .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#ff4d70"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#e8365d"; }}>
+              get started
+            </button>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+
+  // ---- shared form error/success ----
+  const Msg = () => (<>
+    {error && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{error}</div>}
+    {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
+  </>);
+
+  // ---- plan toggle (shared between signup + subscribe pages) ----
+  const PlanToggle = () => (
+    <div style={{ display: "flex", background: "#0e0e0f", border: "1px solid #2a2a2e", borderRadius: 5, padding: 3, marginBottom: 20 }}>
+      {[{ key: "year", label: "Yearly", sub: "$50 / yr", badge: "save 30%" }, { key: "month", label: "Monthly", sub: "$6 / mo", badge: null }].map(p => (
+        <button key={p.key} onClick={() => setBillingInterval(p.key)}
+          style={{ flex: 1, background: billingInterval === p.key ? "#1a1a1e" : "none", border: billingInterval === p.key ? "1px solid #2a2a2e" : "1px solid transparent", borderRadius: 4, padding: "10px 6px", cursor: "pointer", fontFamily: "inherit", transition: "all .15s", textAlign: "center" }}>
+          <div style={{ fontSize: 10, color: billingInterval === p.key ? "#f0f0f2" : "#50505a", letterSpacing: 1 }}>{p.label}</div>
+          <div style={{ fontSize: 12, color: billingInterval === p.key ? "#e8365d" : "#44444e", marginTop: 3 }}>
+            {p.sub}
+            {p.badge && <span style={{ fontSize: 9, color: "#10b981", marginLeft: 6 }}>{p.badge}</span>}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
+  // ===========================================================================
+  // LANDING PAGE
+  // ===========================================================================
+  if (page === "landing") return (
     <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", overflowX: "hidden" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}
-        html{scroll-behavior:smooth}
-        .auth-noise{position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
-        .auth-glow{position:fixed;top:-240px;left:50%;transform:translateX(-50%);width:900px;height:700px;background:radial-gradient(ellipse at center,#e8365d16 0%,transparent 70%);pointer-events:none;z-index:0}
-        .auth-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:18px 48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff06;backdrop-filter:blur(14px);background:#0a0a0b88}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        .a1{opacity:0;animation:fadeUp .6s ease .15s forwards}
-        .a2{opacity:0;animation:fadeUp .7s ease .3s forwards}
-        .a3{opacity:0;animation:fadeUp .7s ease .45s forwards}
-        .a4{opacity:0;animation:fadeUp .7s ease .6s forwards}
-        .a5{opacity:0;animation:fadeUp .7s ease .75s forwards}
-        .feat-card{background:#161619;border:1px solid #1e1e22;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .25s,transform .25s}
-        .feat-card:hover{border-color:#e8365d28;transform:translateY(-2px)}
-        .feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:#e8365d;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
-        .feat-card:hover::before{transform:scaleX(1)}
-        .price-card{background:#161619;border:1px solid #1e1e22;padding:28px 24px;border-radius:6px;transition:border-color .2s,transform .2s;cursor:default}
-        .price-card:hover{border-color:#e8365d40;transform:translateY(-2px)}
-        .price-card.featured{border-color:#e8365d60;background:#1a0f13}
-        .auth-input:focus{border-color:#e8365d!important}
-        .auth-btn-primary{width:100%;background:#e8365d;border:none;color:#fff;border-radius:4px;padding:13px 16px;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:'DM Mono',monospace;transition:background .15s,opacity .15s}
-        .auth-btn-primary:hover:not(:disabled){background:#ff4d70}
-        .auth-btn-primary:disabled{opacity:.5;cursor:default}
-        .auth-btn-ghost{width:100%;background:none;border:1px solid #2a2a2e;color:#50505a;border-radius:4px;padding:11px 16px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;transition:border-color .15s,color .15s}
-        .auth-btn-ghost:hover:not(:disabled){border-color:#e8365d40;color:#9090a0}
-        .scroll-hint{display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.3;animation:fadeIn 1s ease 2s forwards;opacity:0}
-        @media(max-width:768px){
-          .auth-nav{padding:16px 20px}
-          .auth-hero{grid-template-columns:1fr!important;padding:100px 20px 60px!important}
-          .auth-features{padding:60px 20px!important}
-          .auth-pricing{padding:60px 20px!important}
-          .auth-manifesto{padding:48px 20px!important}
-          .auth-manifesto-inner{grid-template-columns:1fr!important}
-          .auth-footer{padding:24px 20px!important;flex-direction:column;gap:8px;text-align:center}
-        }
-      `}</style>
+      <style>{SHARED_CSS}</style>
+      <div className="fx-noise" /><div className="fx-glow" />
+      <Nav />
 
-      <div className="auth-noise" />
-      <div className="auth-glow" />
+      {/* Hero */}
+      <section className="fx-page" style={{ position: "relative", zIndex: 1, maxWidth: 860, margin: "0 auto", padding: "140px 48px 0", textAlign: "center" }}>
+        <div className="a1" style={{ fontSize: 10, letterSpacing: 4, color: "#e8365d", textTransform: "uppercase", marginBottom: 28 }}>
+          A different kind of daily
+        </div>
+        <h1 className="a2" style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(52px, 8vw, 96px)", lineHeight: .9, letterSpacing: -2, color: "#f0f0f2", marginBottom: 0 }}>
+          Built for brains<br />
+          <em style={{ fontStyle: "italic", color: "#e8365d" }}>in</em>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(60px, 10vw, 120px)", letterSpacing: 8, display: "block", color: "#f0f0f2" }}>FLUX</span>
+        </h1>
+        <p className="a3" style={{ fontSize: 14, color: "#888896", lineHeight: 1.9, maxWidth: 540, margin: "28px auto 0" }}>
+          A daily planner and journal that bends instead of breaks. Flexible structure, real data about how your days actually go, and a rhythm that works <em>with</em> you.
+        </p>
 
-      {/* Nav */}
-      <nav className="auth-nav">
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <span style={{ fontSize: 10, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>by madrazall</span>
-          <button onClick={() => { setMode("signin"); document.getElementById("auth-form")?.scrollIntoView({ behavior: "smooth" }); }}
-            style={{ fontSize: 10, letterSpacing: 1.5, color: "#50505a", textTransform: "uppercase", textDecoration: "none", border: "1px solid #2a2a2e", padding: "7px 14px", borderRadius: 3, cursor: "pointer", background: "none", fontFamily: "inherit", transition: "all .15s" }}
-            onMouseEnter={e => { e.target.style.borderColor = "#e8365d"; e.target.style.color = "#e8365d"; }}
-            onMouseLeave={e => { e.target.style.borderColor = "#2a2a2e"; e.target.style.color = "#50505a"; }}>
-            sign in
+        {/* CTA buttons */}
+        <div className="a4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 40, flexWrap: "wrap" }}>
+          <button onClick={() => go("signup")}
+            style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "14px 32px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "background .15s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#ff4d70"}
+            onMouseLeave={e => e.currentTarget.style.background = "#e8365d"}>
+            Start free trial &rarr;
+          </button>
+          <button onClick={() => go("signin")}
+            style={{ background: "none", border: "1px solid #2a2a2e", color: "#888896", borderRadius: 4, padding: "14px 32px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#e8365d40"; e.currentTarget.style.color = "#f0f0f2"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a2a2e"; e.currentTarget.style.color = "#888896"; }}>
+            Sign in
           </button>
         </div>
-      </nav>
 
-      {/* Hero — two column */}
-      <section className="auth-hero" style={{ position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "1fr 420px", gap: 64, alignItems: "center", maxWidth: 1040, margin: "0 auto", padding: "130px 48px 80px" }}>
-
-        {/* Left — copy */}
-        <div>
-          <div className="a1" style={{ fontSize: 10, letterSpacing: 4, color: "#e8365d", textTransform: "uppercase", marginBottom: 24 }}>A different kind of daily</div>
-          <h1 className="a2" style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(48px, 7vw, 88px)", lineHeight: .92, letterSpacing: -2, color: "#f0f0f2", marginBottom: 0 }}>
-            Built for brains<br />
-            <em style={{ fontStyle: "italic", color: "#e8365d" }}>in</em>
-            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: "clamp(54px, 8.5vw, 104px)", letterSpacing: 6, display: "block", fontStyle: "normal", color: "#f0f0f2" }}>FLUX</span>
-          </h1>
-          <p className="a3" style={{ fontSize: 13, color: "#888896", lineHeight: 1.9, maxWidth: 420, marginTop: 28, marginBottom: 12 }}>
-            A daily planner and journal that bends instead of breaks. Flexible structure, real data about how your days actually go, and a system that works with you.
-          </p>
-          <p className="a3" style={{ fontSize: 13, color: "#888896", lineHeight: 1.9, maxWidth: 420, marginBottom: 40 }}>
-            Built to reduce noise and overstimulation. Simple by design. Yours by default.
-          </p>
-          <div className="a4" style={{ display: "flex", gap: 24, alignItems: "center" }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>7</div>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>day free trial</div>
+        {/* Stats row */}
+        <div className="a5" style={{ display: "flex", gap: 40, justifyContent: "center", marginTop: 52, paddingBottom: 52 }}>
+          {[["7", "day free trial"], ["$6", "per month"], ["$50", "per year"]].map(([v, l]) => (
+            <div key={l} style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: "#e8365d", letterSpacing: 2, lineHeight: 1 }}>{v}</div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
             </div>
-            <div style={{ width: 1, height: 40, background: "#2a2a2e" }} />
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>$6</div>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>per month</div>
-            </div>
-            <div style={{ width: 1, height: 40, background: "#2a2a2e" }} />
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: "#e8365d", letterSpacing: 2 }}>$50</div>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase" }}>per year</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right — auth form or subscribe card depending on session state */}
-        <div id="auth-form" className="a5" style={{ background: "#111113", border: "1px solid #222226", borderRadius: 8, padding: 28, position: "relative" }}>
-          <div style={{ position: "absolute", top: -1, left: 24, right: 24, height: 2, background: "linear-gradient(90deg, transparent, #e8365d, transparent)", borderRadius: 1 }} />
-
-          {session ? (
-            /* ---- Subscribe card (signed in, no active sub) ---- */
-            <div>
-                <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Start your free trial</div>
-                <div style={{ fontSize: 11, color: "#50505a", marginBottom: 20 }}>7 days free, then choose a plan. Cancel anytime.</div>
-
-                <div style={{ display: "flex", background: "#0e0e0f", border: "1px solid #2a2a2e", borderRadius: 5, padding: 3, marginBottom: 16 }}>
-                  {[{ key: "month", label: "Monthly", sub: "$6 / mo" }, { key: "year", label: "Yearly", sub: "$50 / yr" }].map(p => (
-                    <button key={p.key} onClick={() => setBillingInterval(p.key)}
-                      style={{ flex: 1, background: billingInterval === p.key ? "#1a1a1e" : "none", border: billingInterval === p.key ? "1px solid #2a2a2e" : "1px solid transparent", borderRadius: 4, padding: "9px 6px", cursor: "pointer", fontFamily: "inherit", transition: "all .15s", textAlign: "center" }}>
-                      <div style={{ fontSize: 10, color: billingInterval === p.key ? "#f0f0f2" : "#50505a", letterSpacing: 1 }}>{p.label}</div>
-                      <div style={{ fontSize: 12, color: billingInterval === p.key ? "#e8365d" : "#44444e", marginTop: 2 }}>{p.sub}
-                        {p.key === "year" && <span style={{ fontSize: 9, color: "#10b981", marginLeft: 5 }}>save 30%</span>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {subError && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{subError}</div>}
-
-                <button className="auth-btn-primary" onClick={handleSubscribe} disabled={subLoading}>
-                  {subLoading ? "redirecting..." : "Start free trial →"}
-                </button>
-
-                <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
-                  secured by Stripe &middot; no commitment
-                </div>
-
-                <button onClick={onSignOut}
-                  style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", color: "#2a2a2e", fontSize: 9, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
-                  sign out
-                </button>
-              </div>
-          ) : (
-            /* ---- Sign in / sign up / forgot card ---- */
-            <div>
-              <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 20 }}>
-                {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset password"}
-              </div>
-
-              {mode !== "forgot" ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
-                    <input className="auth-input" type="email" placeholder="you@example.com" value={email}
-                      onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                      disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
-                    <input className="auth-input" type="password" placeholder={mode === "signup" ? "min 6 characters" : "your password"} value={password}
-                      onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                      disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
-                  </div>
-                </div>
-              ) : (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
-                  <input className="auth-input" type="email" placeholder="your account email" value={email}
-                    onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAuth()}
-                    disabled={loading} style={{ ...inputStyle, border: "1px solid #2a2a2e" }} />
-                  <div style={{ fontSize: 10, color: "#50505a", marginTop: 8 }}>we will send a reset link to this address</div>
-                </div>
-              )}
-
-              {error && <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 12, padding: "10px 12px", background: "#1f0000", borderRadius: 4 }}>{error}</div>}
-              {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button className="auth-btn-primary" onClick={handleAuth}
-                  disabled={loading || !email || (mode !== "forgot" && !password)}>
-                  {loading ? "one moment..." : mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-                </button>
-
-                {mode !== "forgot" && (
-                  <button className="auth-btn-ghost" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setSuccessMsg(""); }}>
-                    {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}
-                  </button>
-                )}
-
-                {mode === "signin" && (
-                  <button className="auth-btn-ghost" style={{ fontSize: 10, padding: "8px 16px" }}
-                    onClick={() => { setMode("forgot"); setError(""); setSuccessMsg(""); }}>
-                    Forgot password?
-                  </button>
-                )}
-
-                {mode === "forgot" && (
-                  <button className="auth-btn-ghost" onClick={() => { setMode("signin"); setError(""); setSuccessMsg(""); setEmail(""); }}>
-                    Back to sign in
-                  </button>
-                )}
-              </div>
-
-              <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 18, textAlign: "center", letterSpacing: 1 }}>
-                your data is yours &middot; private by design
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       </section>
 
-      {/* Scroll hint */}
-      <div style={{ display: "flex", justifyContent: "center", paddingBottom: 48, position: "relative", zIndex: 1 }}>
-        <div className="scroll-hint" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: 0, animation: "fadeIn 1s ease 1.8s forwards" }}>
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#44444e", textTransform: "uppercase" }}>scroll</div>
-          <div style={{ width: 1, height: 32, background: "linear-gradient(to bottom, #44444e, transparent)" }} />
+      {/* WHY — visible right after hero scroll */}
+      <div style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22", borderBottom: "1px solid #1e1e22", padding: "56px 48px", overflow: "hidden", background: "linear-gradient(135deg, #e8365d06 0%, transparent 60%)" }}>
+        <div className="fx-manifesto-inner" style={{ maxWidth: 900, margin: "0 auto", display: "grid", gridTemplateColumns: "140px 1fr", gap: 56, alignItems: "center" }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 72, letterSpacing: 2, color: "#e8365d", lineHeight: .82, opacity: .12, userSelect: "none", textAlign: "center" }}>
+            WHY<br />FLUX
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(17px, 2.2vw, 24px)", lineHeight: 1.65, color: "#888896", fontStyle: "italic", marginBottom: 18 }}>
+              Most planners are built for people who{" "}
+              <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>don&rsquo;t need planners.</strong>{" "}
+              Flux is built around the reality that some days the structure is what gets you through &mdash; and the data is what helps you{" "}
+              <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>build better ones.</strong>
+            </div>
+            <div style={{ fontSize: 10, color: "#44444e", letterSpacing: 1 }}>private &middot; no ads &middot; your data is yours</div>
+          </div>
         </div>
       </div>
 
-      {/* Divider */}
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 48px" }}>
-        <div style={{ height: 1, background: "linear-gradient(to right, transparent, #2a2a2e 20%, #2a2a2e 80%, transparent)" }} />
-      </div>
-
       {/* Features */}
-      <section className="auth-features" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
-        <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 48 }}>What is inside</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2 }}>
+      <section style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 48 }}>What&rsquo;s inside</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 2 }}>
           {FEATURES.map(f => (
             <div key={f.num} className="feat-card">
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 3, color: "#e8365d", opacity: .45, marginBottom: 14 }}>{f.num}</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 3, color: "#e8365d", opacity: .4, marginBottom: 14 }}>{f.num}</div>
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700, color: "#f0f0f2", marginBottom: 10, lineHeight: 1.25 }}>{f.title}</div>
               <div style={{ fontSize: 11, color: "#888896", lineHeight: 1.85 }}>{f.desc}</div>
             </div>
@@ -1459,71 +1416,244 @@ function AuthScreen({ session = null, onSignOut = null }) {
       </section>
 
       {/* Pricing */}
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 48px" }}>
-        <div style={{ height: 1, background: "linear-gradient(to right, transparent, #2a2a2e 20%, #2a2a2e 80%, transparent)" }} />
-      </div>
-      <section className="auth-pricing" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
+      <div style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22" }} />
+      <section style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
         <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 12 }}>Pricing</div>
-        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(28px, 4vw, 42px)", color: "#f0f0f2", marginBottom: 48, lineHeight: 1.2 }}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(26px, 4vw, 40px)", color: "#f0f0f2", marginBottom: 48, lineHeight: 1.2 }}>
           Simple. No tiers.<br /><em style={{ color: "#e8365d" }}>Everything included.</em>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, maxWidth: 680 }}>
-          <div className="price-card">
-            <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase", marginBottom: 16 }}>Monthly</div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>$6</div>
-            <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>per month, cancel anytime</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {["Full access to everything", "7-day free trial", "Cancel any time"].map(t => (
-                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896" }}>
-                  <span style={{ color: "#e8365d", fontSize: 12 }}>+</span> {t}
+        <div className="fx-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, maxWidth: 600 }}>
+          {[
+            { label: "Monthly", price: "$6", sub: "per month, cancel anytime", items: ["Full access", "7-day free trial", "Cancel any time"], featured: false },
+            { label: "Yearly", price: "$50", sub: "per year (~$4.17/mo)", items: ["Full access", "7-day free trial", "Best value"], featured: true, badge: "save 30%" },
+          ].map(p => (
+            <div key={p.label} style={{ background: p.featured ? "#1a0f13" : "#161619", border: `1px solid ${p.featured ? "#e8365d50" : "#1e1e22"}`, borderRadius: 6, padding: "28px 24px", transition: "transform .2s" }}
+              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase" }}>{p.label}</div>
+                {p.badge && <div style={{ fontSize: 9, color: "#e8365d", border: "1px solid #e8365d50", padding: "3px 8px", borderRadius: 2 }}>{p.badge}</div>}
+              </div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>{p.price}</div>
+              <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>{p.sub}</div>
+              {p.items.map(t => (
+                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896", marginBottom: 8 }}>
+                  <span style={{ color: "#e8365d" }}>+</span> {t}
                 </div>
               ))}
             </div>
-          </div>
-          <div className="price-card featured">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase" }}>Yearly</div>
-              <div style={{ fontSize: 9, letterSpacing: 1, color: "#e8365d", border: "1px solid #e8365d60", padding: "3px 8px", borderRadius: 2 }}>save 30%</div>
-            </div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>$50</div>
-            <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>per year, ~$4.17/mo</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {["Full access to everything", "7-day free trial", "Best value"].map(t => (
-                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896" }}>
-                  <span style={{ color: "#e8365d", fontSize: 12 }}>+</span> {t}
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
         <div style={{ marginTop: 32, fontSize: 11, color: "#44444e" }}>
-          Start with a 7-day free trial. No payment info needed until you decide to stay.
+          Start with a 7-day free trial. No card needed until you decide to stay.
+        </div>
+
+        {/* Bottom CTA */}
+        <div style={{ marginTop: 48, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button onClick={() => go("signup")}
+            style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "13px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "background .15s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#ff4d70"}
+            onMouseLeave={e => e.currentTarget.style.background = "#e8365d"}>
+            Start free trial &rarr;
+          </button>
+          <button onClick={() => go("signin")}
+            style={{ background: "none", border: "1px solid #2a2a2e", color: "#50505a", borderRadius: 4, padding: "13px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
+            Already have an account
+          </button>
         </div>
       </section>
 
-      {/* Manifesto */}
-      <div className="auth-manifesto" style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22", borderBottom: "1px solid #1e1e22", padding: "60px 48px", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #e8365d07 0%, transparent 55%)", pointerEvents: "none" }} />
-        <div className="auth-manifesto-inner" style={{ maxWidth: 1040, margin: "0 auto", display: "grid", gridTemplateColumns: "180px 1fr", gap: 64, alignItems: "center", position: "relative", zIndex: 1 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 64, letterSpacing: 3, color: "#e8365d", lineHeight: .85, opacity: .1, userSelect: "none" }}>WHY<br />FLUX</div>
-          <div>
-            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(18px, 2.2vw, 26px)", lineHeight: 1.6, color: "#888896", fontStyle: "italic", marginBottom: 20 }}>
-              Most planners are built for people who <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>don't need planners.</strong> Flux is built around the reality that some days the structure is what gets you through and the data is what helps you <strong style={{ color: "#f0f0f2", fontStyle: "normal" }}>build better ones.</strong>
-            </div>
-            <div style={{ fontSize: 11, color: "#44444e", letterSpacing: 1 }}>private &middot; no ads &middot; your data is yours</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="auth-footer" style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "28px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: "#2a2a2e" }}>FLUX</div>
-        <div style={{ fontSize: 10, color: "#2a2a2e", letterSpacing: .5 }}>
+      <footer className="fx-footer" style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22", maxWidth: "100%", padding: "28px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 3, color: "#2a2a2e" }}>FLUX</div>
+        <div style={{ fontSize: 10, color: "#2a2a2e" }}>
           by <a href="https://madrazallbuilt.com" target="_blank" rel="noopener noreferrer" style={{ color: "#44444e", textDecoration: "none" }}>madrazall</a>
           &nbsp;&middot;&nbsp;
           <a href="mailto:madrazodarcy@gmail.com" style={{ color: "#44444e", textDecoration: "none" }}>contact</a>
         </div>
       </footer>
+    </div>
+  );
+
+  // ===========================================================================
+  // SIGN IN PAGE
+  // ===========================================================================
+  if (page === "signin") return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <style>{SHARED_CSS}</style>
+      <div className="fx-noise" /><div className="fx-glow" />
+      <Nav showBack backLabel="home" onBack={() => go("landing")} />
+
+      <div className="fx-subpage" style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400, padding: "0 24px" }}>
+        <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Welcome back</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 28, lineHeight: 1.2 }}>Sign in to Flux</div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+              <input className="fx-input" type="email" placeholder="you@example.com" value={email}
+                onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignIn()}
+                disabled={loading} style={iStyle(loading)} />
+            </div>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
+              <input className="fx-input" type="password" placeholder="your password" value={password}
+                onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignIn()}
+                disabled={loading} style={iStyle(loading)} />
+            </div>
+          </div>
+
+          <Msg />
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button className="fx-btn fx-btn-red" onClick={handleSignIn} disabled={loading || !email || !password}>
+              {loading ? "signing in..." : "Sign In"}
+            </button>
+            <button className="fx-btn fx-btn-ghost" onClick={() => go("forgot")}>
+              Forgot password?
+            </button>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "#44444e" }}>
+            No account?{" "}
+            <button onClick={() => go("signup")} style={{ background: "none", border: "none", color: "#e8365d", cursor: "pointer", fontFamily: "inherit", fontSize: 11 }}>
+              Start free trial
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ===========================================================================
+  // FORGOT PASSWORD PAGE
+  // ===========================================================================
+  if (page === "forgot") return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <style>{SHARED_CSS}</style>
+      <div className="fx-noise" /><div className="fx-glow" />
+      <Nav showBack backLabel="sign in" onBack={() => go("signin")} />
+
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400, padding: "0 24px" }}>
+        <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Account recovery</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 10, lineHeight: 1.2 }}>Reset password</div>
+          <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24, lineHeight: 1.7 }}>Enter your email and we&rsquo;ll send a reset link. Expires in 1 hour.</div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+            <input className="fx-input" type="email" placeholder="your account email" value={email}
+              onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleForgot()}
+              disabled={loading} style={iStyle(loading)} />
+          </div>
+
+          <Msg />
+
+          <button className="fx-btn fx-btn-red" onClick={handleForgot} disabled={loading || !email}>
+            {loading ? "sending..." : "Send Reset Link"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ===========================================================================
+  // SIGN UP PAGE — account creation + immediate Stripe checkout
+  // ===========================================================================
+  if (page === "signup") return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <style>{SHARED_CSS}</style>
+      <div className="fx-noise" /><div className="fx-glow" />
+      <Nav showBack backLabel="home" onBack={() => go("landing")} />
+
+      <div className="fx-subpage" style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "0 24px" }}>
+        <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Get started</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 4, lineHeight: 1.2 }}>
+            Start your free trial
+          </div>
+          <div style={{ fontSize: 11, color: "#50505a", marginBottom: 28, lineHeight: 1.7 }}>
+            7 days free. Pick a plan below &mdash; you won&rsquo;t be charged until the trial ends.
+          </div>
+
+          {/* Plan selector */}
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 8 }}>Choose plan</div>
+          <PlanToggle />
+
+          {/* Account fields */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
+              <input className="fx-input" type="email" placeholder="you@example.com" value={email}
+                onChange={e => setEmail(e.target.value)} disabled={loading} style={iStyle(loading)} />
+            </div>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Password</div>
+              <input className="fx-input" type="password" placeholder="min 6 characters" value={password}
+                onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignUp()}
+                disabled={loading} style={iStyle(loading)} />
+            </div>
+          </div>
+
+          <Msg />
+
+          <button className="fx-btn fx-btn-red" onClick={handleSignUp} disabled={loading || !email || !password}>
+            {loading ? "creating account..." : "Create account → go to checkout"}
+          </button>
+
+          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
+            secured by Stripe &middot; cancel anytime
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "#44444e" }}>
+            Already have an account?{" "}
+            <button onClick={() => go("signin")} style={{ background: "none", border: "none", color: "#e8365d", cursor: "pointer", fontFamily: "inherit", fontSize: 11 }}>
+              Sign in
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ===========================================================================
+  // SUBSCRIBE PAGE — existing account, no active sub
+  // ===========================================================================
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <style>{SHARED_CSS}</style>
+      <div className="fx-noise" /><div className="fx-glow" />
+      <Nav showBack={false} />
+
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "80px 24px 0" }}>
+        <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>One more step</div>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 8, lineHeight: 1.2 }}>Start your free trial</div>
+          <div style={{ fontSize: 11, color: "#50505a", marginBottom: 28, lineHeight: 1.7 }}>
+            Signed in as <strong style={{ color: "#888896" }}>{session?.user?.email}</strong>.<br />
+            Choose a plan to continue. 7 days free, no charge until your trial ends.
+          </div>
+
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 8 }}>Choose plan</div>
+          <PlanToggle />
+
+          <Msg />
+
+          <button className="fx-btn fx-btn-red" onClick={handleSubscribeExisting} disabled={loading}>
+            {loading ? "redirecting..." : "Start free trial →"}
+          </button>
+
+          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
+            secured by Stripe &middot; cancel anytime
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
+              sign out
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
