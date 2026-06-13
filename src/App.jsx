@@ -2070,6 +2070,26 @@ export default function App() {
       <div style={{ fontSize: 10, color: "#44444e" }}>this takes just a moment</div>
     </div>
   );
+  // If they just came back from Stripe checkout but the subscription hasn't
+  // appeared yet (webhook delay or setup issue), show a processing screen
+  // instead of looping them back into the subscribe flow.
+  if (checkoutSuccess && session && !hasActiveSub) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 20, padding: "0 24px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
+      <div style={{ fontSize: 13, color: "#f0f0f2" }}>Payment received — just finishing setup</div>
+      <div style={{ fontSize: 11, color: "#50505a", maxWidth: 340, lineHeight: 1.8 }}>
+        Your subscription is being activated. This usually takes under a minute.<br />Refresh the page to check.
+      </div>
+      <button onClick={() => window.location.reload()}
+        style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "12px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}>
+        Refresh
+      </button>
+      <button onClick={() => supabase.auth.signOut()}
+        style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
+        sign out
+      </button>
+    </div>
+  );
   if (!session || !hasActiveSub) return <AuthScreen session={session} onSignOut={() => supabase.auth.signOut()} />;
 
   return (
