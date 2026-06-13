@@ -1167,6 +1167,40 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
+// -- Post-checkout activation screen — polls until sub row appears ------------
+function CheckoutProcessing({ userId, onActivated, onSignOut }) {
+  const [dots, setDots] = useState(".");
+  useEffect(() => {
+    const dot = setInterval(() => setDots(d => d.length >= 3 ? "." : d + "."), 600);
+    return () => clearInterval(dot);
+  }, []);
+  useEffect(() => {
+    const active = (d) => d && (d.status === "active" || d.status === "trialing");
+    const timer = setInterval(async () => {
+      const { data } = await supabase.from("subscriptions").select("status, current_period_end").eq("user_id", userId).single();
+      if (active(data)) { clearInterval(timer); onActivated(data); }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [userId, onActivated]);
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 20, padding: "0 24px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
+      <div style={{ fontSize: 13, color: "#f0f0f2" }}>Payment received — finishing setup{dots}</div>
+      <div style={{ fontSize: 11, color: "#50505a", maxWidth: 340, lineHeight: 1.8 }}>
+        Activating your subscription. You'll be taken in automatically.
+      </div>
+      <button onClick={() => window.location.reload()}
+        style={{ background: "none", border: "1px solid #2a2a2e", color: "#50505a", borderRadius: 4, padding: "10px 24px", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
+        Refresh manually
+      </button>
+      <button onClick={onSignOut}
+        style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
+        sign out
+      </button>
+    </div>
+  );
+}
+
 // -- Auth / Landing / Sign-up / Sign-in screens --------------------------------
 function AuthScreen({ session = null, onSignOut = null }) {
   // page: "landing" | "signin" | "signup" | "subscribe" | "forgot"
@@ -2074,21 +2108,9 @@ export default function App() {
   // appeared yet (webhook delay or setup issue), show a processing screen
   // instead of looping them back into the subscribe flow.
   if (checkoutSuccess && session && !hasActiveSub) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 20, padding: "0 24px", textAlign: "center" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
-      <div style={{ fontSize: 13, color: "#f0f0f2" }}>Payment received — just finishing setup</div>
-      <div style={{ fontSize: 11, color: "#50505a", maxWidth: 340, lineHeight: 1.8 }}>
-        Your subscription is being activated. This usually takes under a minute.<br />Refresh the page to check.
-      </div>
-      <button onClick={() => window.location.reload()}
-        style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "12px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}>
-        Refresh
-      </button>
-      <button onClick={() => supabase.auth.signOut()}
-        style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
-        sign out
-      </button>
-    </div>
+    <CheckoutProcessing onSignOut={() => supabase.auth.signOut()}
+      onActivated={(sub) => { setUserSub(sub); window.history.replaceState({}, "", "/"); }}
+      userId={session.user.id} />
   );
   if (!session || !hasActiveSub) return <AuthScreen session={session} onSignOut={() => supabase.auth.signOut()} />;
 
