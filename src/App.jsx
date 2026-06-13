@@ -1167,47 +1167,12 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
-// -- Post-checkout activation screen — polls until sub row appears ------------
-function CheckoutProcessing({ userId, onActivated, onSignOut }) {
-  const [dots, setDots] = useState(".");
-  useEffect(() => {
-    const dot = setInterval(() => setDots(d => d.length >= 3 ? "." : d + "."), 600);
-    return () => clearInterval(dot);
-  }, []);
-  useEffect(() => {
-    const active = (d) => d && (d.status === "active" || d.status === "trialing");
-    const timer = setInterval(async () => {
-      const { data } = await supabase.from("subscriptions").select("status, current_period_end").eq("user_id", userId).single();
-      if (active(data)) { clearInterval(timer); onActivated(data); }
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [userId, onActivated]);
-  return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 20, padding: "0 24px", textAlign: "center" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
-      <div style={{ fontSize: 13, color: "#f0f0f2" }}>Payment received — finishing setup{dots}</div>
-      <div style={{ fontSize: 11, color: "#50505a", maxWidth: 340, lineHeight: 1.8 }}>
-        Activating your subscription. You'll be taken in automatically.
-      </div>
-      <button onClick={() => window.location.reload()}
-        style={{ background: "none", border: "1px solid #2a2a2e", color: "#50505a", borderRadius: 4, padding: "10px 24px", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
-        Refresh manually
-      </button>
-      <button onClick={onSignOut}
-        style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
-        sign out
-      </button>
-    </div>
-  );
-}
-
 // -- Auth / Landing / Sign-up / Sign-in screens --------------------------------
-function AuthScreen({ session = null, onSignOut = null }) {
-  // page: "landing" | "signin" | "signup" | "subscribe" | "forgot"
-  const [page, setPage] = useState(session ? "subscribe" : "landing");
+function AuthScreen({ onSignOut = null }) {
+  // page: "landing" | "signin" | "signup" | "forgot"
+  const [page, setPage] = useState("landing");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [billingInterval, setBillingInterval] = useState("year");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -1231,35 +1196,9 @@ function AuthScreen({ session = null, onSignOut = null }) {
 
   async function handleSignUp() {
     setError(""); setLoading(true);
-    try {
-      const { data, error: e } = await supabase.auth.signUp({ email, password });
-      if (e) { setError(e.message); setLoading(false); return; }
-      const userId = data?.user?.id;
-      if (!userId) { setError("Account created. Sign in to continue."); setLoading(false); return; }
-      const res = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, interval: billingInterval }),
-      });
-      const checkout = await res.json();
-      if (checkout.url) { window.location.href = checkout.url; }
-      else { setError(checkout.error || "Could not start checkout. Sign in to continue."); }
-    } catch { setError("Connection error. Try again."); }
-    setLoading(false);
-  }
-
-  async function handleSubscribeExisting() {
-    setError(""); setLoading(true);
-    try {
-      const res = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: session.user.id, interval: billingInterval }),
-      });
-      const checkout = await res.json();
-      if (checkout.url) { window.location.href = checkout.url; }
-      else { setError(checkout.error || "Something went wrong."); }
-    } catch { setError("Connection error. Try again."); }
+    const { error: e } = await supabase.auth.signUp({ email, password });
+    if (e) setError(e.message);
+    else setSuccessMsg("Account created! Check your email to confirm, then sign in.");
     setLoading(false);
   }
 
@@ -1351,22 +1290,6 @@ function AuthScreen({ session = null, onSignOut = null }) {
     {successMsg && <div style={{ fontSize: 11, color: "#10b981", marginBottom: 12, padding: "10px 12px", background: "#001a10", borderRadius: 4 }}>{successMsg}</div>}
   </>);
 
-  // ---- plan toggle (shared between signup + subscribe pages) ----
-  const PlanToggle = () => (
-    <div style={{ display: "flex", background: "#0e0e0f", border: "1px solid #2a2a2e", borderRadius: 5, padding: 3, marginBottom: 20 }}>
-      {[{ key: "year", label: "Yearly", sub: "$50 / yr", badge: "save 30%" }, { key: "month", label: "Monthly", sub: "$6 / mo", badge: null }].map(p => (
-        <button key={p.key} onClick={() => setBillingInterval(p.key)}
-          style={{ flex: 1, background: billingInterval === p.key ? "#1a1a1e" : "none", border: billingInterval === p.key ? "1px solid #2a2a2e" : "1px solid transparent", borderRadius: 4, padding: "10px 6px", cursor: "pointer", fontFamily: "inherit", transition: "all .15s", textAlign: "center" }}>
-          <div style={{ fontSize: 10, color: billingInterval === p.key ? "#f0f0f2" : "#50505a", letterSpacing: 1 }}>{p.label}</div>
-          <div style={{ fontSize: 12, color: billingInterval === p.key ? "#e8365d" : "#44444e", marginTop: 3 }}>
-            {p.sub}
-            {p.badge && <span style={{ fontSize: 9, color: "#10b981", marginLeft: 6 }}>{p.badge}</span>}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-
   // ===========================================================================
   // LANDING PAGE
   // ===========================================================================
@@ -1391,12 +1314,12 @@ function AuthScreen({ session = null, onSignOut = null }) {
         </p>
 
         {/* CTA buttons */}
-        <div className="a4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 40, flexWrap: "wrap" }}>
+        <div className="a4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 40, flexWrap: "wrap", paddingBottom: 64 }}>
           <button onClick={() => go("signup")}
             style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "14px 32px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "background .15s" }}
             onMouseEnter={e => e.currentTarget.style.background = "#ff4d70"}
             onMouseLeave={e => e.currentTarget.style.background = "#e8365d"}>
-            Start free trial &rarr;
+            Get started &rarr;
           </button>
           <button onClick={() => go("signin")}
             style={{ background: "none", border: "1px solid #2a2a2e", color: "#888896", borderRadius: 4, padding: "14px 32px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}
@@ -1404,16 +1327,6 @@ function AuthScreen({ session = null, onSignOut = null }) {
             onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a2a2e"; e.currentTarget.style.color = "#888896"; }}>
             Sign in
           </button>
-        </div>
-
-        {/* Stats row */}
-        <div className="a5" style={{ display: "flex", gap: 40, justifyContent: "center", marginTop: 52, paddingBottom: 52 }}>
-          {[["7", "day free trial"], ["$6", "per month"], ["$50", "per year"]].map(([v, l]) => (
-            <div key={l} style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: "#e8365d", letterSpacing: 2, lineHeight: 1 }}>{v}</div>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -1446,54 +1359,6 @@ function AuthScreen({ session = null, onSignOut = null }) {
               <div style={{ fontSize: 11, color: "#888896", lineHeight: 1.85 }}>{f.desc}</div>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <div style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1e1e22" }} />
-      <section style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "80px 48px" }}>
-        <div style={{ fontSize: 9, letterSpacing: 4, color: "#44444e", textTransform: "uppercase", marginBottom: 12 }}>Pricing</div>
-        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(26px, 4vw, 40px)", color: "#f0f0f2", marginBottom: 48, lineHeight: 1.2 }}>
-          Simple. No tiers.<br /><em style={{ color: "#e8365d" }}>Everything included.</em>
-        </div>
-        <div className="fx-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, maxWidth: 600 }}>
-          {[
-            { label: "Monthly", price: "$6", sub: "per month, cancel anytime", items: ["Full access", "7-day free trial", "Cancel any time"], featured: false },
-            { label: "Yearly", price: "$50", sub: "per year (~$4.17/mo)", items: ["Full access", "7-day free trial", "Best value"], featured: true, badge: "save 30%" },
-          ].map(p => (
-            <div key={p.label} style={{ background: p.featured ? "#1a0f13" : "#161619", border: `1px solid ${p.featured ? "#e8365d50" : "#1e1e22"}`, borderRadius: 6, padding: "28px 24px", transition: "transform .2s" }}
-              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div style={{ fontSize: 9, letterSpacing: 3, color: "#888896", textTransform: "uppercase" }}>{p.label}</div>
-                {p.badge && <div style={{ fontSize: 9, color: "#e8365d", border: "1px solid #e8365d50", padding: "3px 8px", borderRadius: 2 }}>{p.badge}</div>}
-              </div>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#f0f0f2", letterSpacing: 2, lineHeight: 1 }}>{p.price}</div>
-              <div style={{ fontSize: 11, color: "#50505a", marginBottom: 24 }}>{p.sub}</div>
-              {p.items.map(t => (
-                <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 11, color: "#888896", marginBottom: 8 }}>
-                  <span style={{ color: "#e8365d" }}>+</span> {t}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 32, fontSize: 11, color: "#44444e" }}>
-          Start with a 7-day free trial. No card needed until you decide to stay.
-        </div>
-
-        {/* Bottom CTA */}
-        <div style={{ marginTop: 48, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button onClick={() => go("signup")}
-            style={{ background: "#e8365d", border: "none", color: "#fff", borderRadius: 4, padding: "13px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", transition: "background .15s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "#ff4d70"}
-            onMouseLeave={e => e.currentTarget.style.background = "#e8365d"}>
-            Start free trial &rarr;
-          </button>
-          <button onClick={() => go("signin")}
-            style={{ background: "none", border: "1px solid #2a2a2e", color: "#50505a", borderRadius: 4, padding: "13px 28px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>
-            Already have an account
-          </button>
         </div>
       </section>
 
@@ -1592,7 +1457,7 @@ function AuthScreen({ session = null, onSignOut = null }) {
   );
 
   // ===========================================================================
-  // SIGN UP PAGE — account creation + immediate Stripe checkout
+  // SIGN UP PAGE
   // ===========================================================================
   if (page === "signup") return (
     <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -1600,21 +1465,13 @@ function AuthScreen({ session = null, onSignOut = null }) {
       <div className="fx-noise" /><div className="fx-glow" />
       <Nav showBack backLabel="home" onBack={() => go("landing")} />
 
-      <div className="fx-subpage" style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "0 24px" }}>
+      <div className="fx-subpage" style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400, padding: "0 24px" }}>
         <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
           <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>Get started</div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 4, lineHeight: 1.2 }}>
-            Start your free trial
-          </div>
-          <div style={{ fontSize: 11, color: "#50505a", marginBottom: 28, lineHeight: 1.7 }}>
-            7 days free. Pick a plan below &mdash; you won&rsquo;t be charged until the trial ends.
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 24, lineHeight: 1.2 }}>
+            Create your account
           </div>
 
-          {/* Plan selector */}
-          <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 8 }}>Choose plan</div>
-          <PlanToggle />
-
-          {/* Account fields */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
             <div>
               <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 5 }}>Email</div>
@@ -1632,14 +1489,10 @@ function AuthScreen({ session = null, onSignOut = null }) {
           <Msg />
 
           <button className="fx-btn fx-btn-red" onClick={handleSignUp} disabled={loading || !email || !password}>
-            {loading ? "creating account..." : "Create account → go to checkout"}
+            {loading ? "creating account..." : "Create account →"}
           </button>
 
-          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
-            secured by Stripe &middot; cancel anytime
-          </div>
-
-          <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "#44444e" }}>
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "#44444e" }}>
             Already have an account?{" "}
             <button onClick={() => go("signin")} style={{ background: "none", border: "none", color: "#e8365d", cursor: "pointer", fontFamily: "inherit", fontSize: 11 }}>
               Sign in
@@ -1650,46 +1503,7 @@ function AuthScreen({ session = null, onSignOut = null }) {
     </div>
   );
 
-  // ===========================================================================
-  // SUBSCRIBE PAGE — existing account, no active sub
-  // ===========================================================================
-  return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0b", color: "#f0f0f2", fontFamily: "'DM Mono',monospace", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-      <style>{SHARED_CSS}</style>
-      <div className="fx-noise" /><div className="fx-glow" />
-      <Nav showBack={false} />
-
-      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "80px 24px 0" }}>
-        <div style={{ background: "#111113", border: "1px solid #1e1e22", borderTop: "2px solid #e8365d", borderRadius: 6, padding: "36px 32px" }}>
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#e8365d", textTransform: "uppercase", marginBottom: 6 }}>One more step</div>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, color: "#f0f0f2", marginBottom: 8, lineHeight: 1.2 }}>Start your free trial</div>
-          <div style={{ fontSize: 11, color: "#50505a", marginBottom: 28, lineHeight: 1.7 }}>
-            Signed in as <strong style={{ color: "#888896" }}>{session?.user?.email}</strong>.<br />
-            Choose a plan to continue. 7 days free, no charge until your trial ends.
-          </div>
-
-          <div style={{ fontSize: 9, letterSpacing: 2, color: "#44444e", textTransform: "uppercase", marginBottom: 8 }}>Choose plan</div>
-          <PlanToggle />
-
-          <Msg />
-
-          <button className="fx-btn fx-btn-red" onClick={handleSubscribeExisting} disabled={loading}>
-            {loading ? "redirecting..." : "Start free trial →"}
-          </button>
-
-          <div style={{ fontSize: 9, color: "#2a2a2e", marginTop: 14, textAlign: "center", letterSpacing: 1 }}>
-            secured by Stripe &middot; cancel anytime
-          </div>
-
-          <div style={{ textAlign: "center", marginTop: 16 }}>
-            <button onClick={onSignOut} style={{ background: "none", border: "none", color: "#2a2a2e", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
-              sign out
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1727,48 +1541,13 @@ export default function App() {
   const [dbLoading, setDbLoading]           = useState(false);
   const [archiveTime, setArchiveTime]       = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
-  const [userSub, setUserSub]               = useState(null);
-  const [subLoading, setSubLoading]         = useState(false);
-  const [subPolling, setSubPolling]         = useState(false);
   const currentDayKey = todayKey();
-
-  const checkoutSuccess = new URLSearchParams(window.location.search).get("checkout") === "success";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
     return () => subscription.unsubscribe();
   }, []);
-
-  // Load subscription status when session is available
-  useEffect(() => {
-    if (!session) { setUserSub(null); return; }
-    setSubLoading(true);
-    supabase.from("subscriptions").select("status, current_period_end").eq("user_id", session.user.id).single()
-      .then(({ data }) => { setUserSub(data); setSubLoading(false); });
-  }, [session]);
-
-  // After Stripe checkout, poll until the webhook writes the subscription row
-  useEffect(() => {
-    if (!checkoutSuccess || !session) return;
-    const active = (d) => d && (d.status === "active" || d.status === "trialing");
-    if (active(userSub)) { window.history.replaceState({}, "", "/"); return; }
-    setSubPolling(true);
-    let attempts = 0;
-    const timer = setInterval(async () => {
-      attempts++;
-      const { data } = await supabase.from("subscriptions").select("status, current_period_end").eq("user_id", session.user.id).single();
-      if (active(data)) {
-        setUserSub(data);
-        setSubPolling(false);
-        clearInterval(timer);
-        window.history.replaceState({}, "", "/");
-      }
-      if (attempts >= 15) { setSubPolling(false); clearInterval(timer); }
-    }, 2000);
-    return () => clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutSuccess, session]);
 
   useEffect(() => {
     if (window.location.hash.includes("type=recovery")) setShowResetForm(true);
@@ -2094,25 +1873,8 @@ export default function App() {
     );
   }
 
-  const hasActiveSub = userSub && (userSub.status === "active" || userSub.status === "trialing");
-
-  if (authLoading || subLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
-  if (subPolling) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0b", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#888896", fontFamily: "'DM Mono',monospace", gap: 16 }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 4, color: "#e8365d" }}>FLUX</div>
-      <div style={{ fontSize: 11, letterSpacing: 2 }}>activating your subscription...</div>
-      <div style={{ fontSize: 10, color: "#44444e" }}>this takes just a moment</div>
-    </div>
-  );
-  // If they just came back from Stripe checkout but the subscription hasn't
-  // appeared yet (webhook delay or setup issue), show a processing screen
-  // instead of looping them back into the subscribe flow.
-  if (checkoutSuccess && session && !hasActiveSub) return (
-    <CheckoutProcessing onSignOut={() => supabase.auth.signOut()}
-      onActivated={(sub) => { setUserSub(sub); window.history.replaceState({}, "", "/"); }}
-      userId={session.user.id} />
-  );
-  if (!session || !hasActiveSub) return <AuthScreen session={session} onSignOut={() => supabase.auth.signOut()} />;
+  if (authLoading) return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textDim, fontFamily: "monospace" }}>loading...</div>;
+  if (!session) return <AuthScreen onSignOut={() => supabase.auth.signOut()} />;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans','system-ui',sans-serif", fontSize: "13px" }}>
