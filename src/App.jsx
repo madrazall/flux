@@ -1286,7 +1286,7 @@ function JournalDrawer({ journalInput, setJournalInput, journalInputRef, journal
 }
 
 // -- The Download Drawer (end-of-day debrief) ---------------------------------
-function DownloadDrawer({ dayNote, setDayNote, wins, setWins, hard, setHard, completedTasksCount, carryoversCount, followUpOrStuckCount, archiveTime, setArchiveTime, saveToday, archiveDay }) {
+function DownloadDrawer({ dayNote, setDayNote, wins, setWins, hard, setHard, completedTasksCount, carryoversCount, followUpOrStuckCount, archiveTime, setArchiveTime, saveToday, openArchiveModal }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -1338,7 +1338,7 @@ function DownloadDrawer({ dayNote, setDayNote, wins, setWins, hard, setHard, com
               <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
                 style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "5px 7px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
             </div>
-            <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 20px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>archive day →</button>
+            <button onClick={openArchiveModal} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 20px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>archive day →</button>
           </div>
         </div>
       )}
@@ -1717,6 +1717,7 @@ export default function App() {
   const [archive, setArchive]               = useState({});
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
+  const [archiveModal, setArchiveModal]     = useState(null); // null | { keepIds: Set }
   const [dbLoading, setDbLoading]           = useState(false);
   const [archiveTime, setArchiveTime]       = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
@@ -1829,8 +1830,14 @@ export default function App() {
     await supabase.from("user_data").upsert({ user_id: session.user.id, today_key: todayKey(), shifts: newShifts }, { onConflict: "user_id" });
   }
 
-  async function archiveDay() {
+  function openArchiveModal() {
+    if (!blocks.length) { archiveDay(new Set()); return; }
+    setArchiveModal({ keepIds: new Set(blocks.map(b => b.id)) });
+  }
+
+  async function archiveDay(keepIds = new Set()) {
     if (!session) return;
+    setArchiveModal(null);
     const uid = session.user.id;
     let updatedTags = [...tags];
     blocks.forEach(b => { if (b.tag) updatedTags = bumpTagUse(b.tag, updatedTags); });
@@ -1847,7 +1854,8 @@ export default function App() {
     const undone = tasks.filter(t => !t.done && (!t.scheduledFor || t.scheduledFor <= todayKey()));
     const scheduled = tasks.filter(t => !t.done && t.scheduledFor && t.scheduledFor > todayKey());
     setTasks([...undone.map(t => ({ ...t, addedAt: (t.addedAt || "") + " (rolled)" })), ...scheduled]);
-    setBlocks([]);
+    const keptBlocks = blocks.filter(b => keepIds.has(b.id));
+    setBlocks(keptBlocks);
     setMood(2);
     setDayNote("");
     setWins("");
@@ -1865,7 +1873,7 @@ export default function App() {
       const [targetH, targetM] = archiveTime.split(":").map(Number);
       const hasContent = blocks.length > 0 || tasks.length > 0 || wins || hard || dayNote || journalEntries.length > 0;
       if (currentH === targetH && currentM === targetM && !autoArchivedToday && hasContent) {
-        archiveDay();
+        archiveDay(new Set());
       }
       if (currentH === 1 && currentM === 0) {
         localStorage.removeItem("flux_autoarchived_" + todayKey());
@@ -2086,6 +2094,41 @@ export default function App() {
         </div>
       )}
 
+      {archiveModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#000000b0", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, width: "100%", maxWidth: 420, padding: "28px 24px", boxShadow: "0 24px 80px #00000080" }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: C.textDim, marginBottom: 8 }}>ARCHIVE DAY</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, color: C.text, marginBottom: 6 }}>Which blocks carry forward?</div>
+            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 20, lineHeight: 1.6 }}>Checked blocks will stay on tomorrow's timeline. Unchecked ones are saved in the archive only.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto", marginBottom: 20 }}>
+              {blocks.map(b => {
+                const checked = archiveModal.keepIds.has(b.id);
+                const startH = Math.floor(b.startMinute / 60) + DAY_START_HOUR;
+                const startM = b.startMinute % 60;
+                const timeLabel = `${startH % 12 || 12}:${String(startM).padStart(2, "0")} ${startH < 12 ? "am" : "pm"}`;
+                return (
+                  <label key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: checked ? C.accentDim : C.surface, border: `1px solid ${checked ? C.accent + "50" : C.border}`, borderRadius: 6, cursor: "pointer" }}>
+                    <input type="checkbox" checked={checked} onChange={() => {
+                      const next = new Set(archiveModal.keepIds);
+                      checked ? next.delete(b.id) : next.add(b.id);
+                      setArchiveModal({ keepIds: next });
+                    }} style={{ accentColor: C.accent, width: 14, height: 14 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label || "Untitled block"}</div>
+                      <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>{timeLabel} · {b.duration} min</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setArchiveModal(null)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "8px 18px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
+              <button onClick={() => archiveDay(archiveModal.keepIds)} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 22px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>archive day →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 20px", background: C.bg, zIndex: 20, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
@@ -2175,7 +2218,7 @@ export default function App() {
                 followUpOrStuckCount={followUpOrStuckCount}
                 archiveTime={archiveTime} setArchiveTime={setArchiveTime}
                 saveToday={saveToday}
-                archiveDay={archiveDay}
+                openArchiveModal={openArchiveModal}
               />
 
             </div>{/* end right scroll */}
