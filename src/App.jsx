@@ -46,7 +46,7 @@ const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 23;
 const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 
-const MOODS = ["ðŸŒ' crashed", "ðŸŒ˜ low", "ðŸŒ— okay", "ðŸŒ• good", "â­ lit"];
+const MOODS = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
 
 const JOURNAL_TYPES = ["note", "done", "stuck", "follow_up"];
 const JOURNAL_TYPE_LABELS = {
@@ -119,7 +119,7 @@ function escapeHtmlWithBreaks(value) {
   return escapeHtml(value).replace(/\r?\n/g, "<br>");
 }
 
-// â"€â"€ Time math â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Time math ─────────────────────────────────────────────────────────
 function timeToMinutes(timeStr) {
   if (!timeStr) return DAY_START_HOUR * 60;
   const match = timeStr.match(/(\d+):(\d+)(am|pm)/i);
@@ -153,7 +153,7 @@ function pxToMinutes(px) {
 }
 
 
-// â"€â"€ Column layout for overlapping blocks â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Column layout for overlapping blocks ──────────────────────────────
 function computeColumns(blocks) {
   const sorted = [...blocks].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
   const columns = [];
@@ -198,7 +198,7 @@ function computeColumns(blocks) {
   return blockWidths;
 }
 
-// â"€â"€ Tag helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Tag helpers ───────────────────────────────────────────────────────
 function resolveTag(tagId, tags) {
   return tags.find(t => t.id === tagId) || { label: tagId, color: C.textDim, bg: C.surface };
 }
@@ -215,10 +215,10 @@ function bumpTagUse(tagId, tags) {
   return tags.map(t => t.id !== tagId ? t : { ...t, uses: (t.uses || 0) + 1 });
 }
 
-// â"€â"€ CHANGE 3: makeDefaults removed — blocks always start empty â"€â"€â"€â"€â"€â"€â"€â"€
+// ── CHANGE 3: makeDefaults removed — blocks always start empty ────────
 // Demo blocks are gone. New days start with [].
 
-// â"€â"€ Pattern helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Pattern helpers ───────────────────────────────────────────────────
 const STOP = new Set(["the","a","an","and","or","but","i","my","to","was","it","in","of","that","so","just","is","on","at","for","with","had","not","no","be","have","did","got","this","what","when","went","felt","really","very","like","time","day","today","some","more","too","been","then","also","into"]);
 function topWords(text, n = 6) {
   const freq = {};
@@ -261,10 +261,10 @@ function computePatterns(archive, tags) {
   };
 }
 
-// â"€â"€ Print â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Print ─────────────────────────────────────────────────────────────
 function printDay(day, tags) {
   const resolveT = (tagId) => tags.find(t => t.id === tagId) || { label: tagId, color: "#50505a", bg: "#161618" };
-  const MOODS_PRINT = ["ðŸŒ' crashed", "ðŸŒ˜ low", "ðŸŒ— okay", "ðŸŒ• good", "â­ lit"];
+  const MOODS_PRINT = ["🌑 crashed", "🌘 low", "🌗 okay", "🌕 good", "⭐ lit"];
   const doneTasks = (day.tasks || []).filter(t => t.done);
   const pendingTasks = (day.tasks || []).filter(t => !t.done);
   const ROLLOVER_THRESHOLD = 3;
@@ -388,7 +388,7 @@ body { display: flex; flex-direction: row; font-family: 'DM Sans', sans-serif; c
   w.document.close();
 }
 
-// â"€â"€ Mini components â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Mini components ───────────────────────────────────────────────────
 function MiniBar({ label, value, max, color, sub }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -447,7 +447,7 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <div onClick={() => setOpen(!open)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
         {current ? <TagPill tag={current} small /> : <span style={{ fontSize: 11, color: C.textDim, padding: "2px 8px", border: `1px dashed ${C.border}`, borderRadius: 3 }}>tag</span>}
-        <span style={{ fontSize: 9, color: C.textDim }}>â–¾</span>
+        <span style={{ fontSize: 9, color: C.textDim }}>▾</span>
       </div>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, minWidth: 170, boxShadow: "0 8px 24px #00000060", padding: "8px 0" }}>
@@ -461,7 +461,7 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
                 onMouseLeave={e => e.currentTarget.style.background = value === t.id ? C.surface : "none"}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
                 <span style={{ fontSize: 12, color: C.text }}>{t.label}</span>
-                {t.uses >= PROMOTE_THRESHOLD && <span style={{ fontSize: 9, color: C.textDim, marginLeft: "auto" }}>â˜…</span>}
+                {t.uses >= PROMOTE_THRESHOLD && <span style={{ fontSize: 9, color: C.textDim, marginLeft: "auto" }}>★</span>}
               </div>
             ))}
             {canCreate && (
@@ -480,7 +480,7 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
   );
 }
 
-// â"€â"€ Visual Timeline â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Visual Timeline ───────────────────────────────────────────────────
 function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   const timelineRef = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
@@ -593,12 +593,12 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   }
 
   return (
-    // â"€â"€ CHANGE 1: removed marginBottom:16 from outer wrapper, gap was coming
+    // ── CHANGE 1: removed marginBottom:16 from outer wrapper, gap was coming
     // from the spacer div at the bottom doubling the timeline height. Spacer removed.
     <div>
       <div style={{ display: "flex", fontSize: 11, color: C.textDim, marginBottom: 8, gap: 16 }}>
         <span>click empty space to add a block</span>
-        <span>drag to move Â· drag bottom edge to resize</span>
+        <span>drag to move · drag bottom edge to resize</span>
       </div>
 
       <div style={{ display: "flex", gap: 0 }}>
@@ -667,7 +667,7 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 4, flex: 1, overflow: "hidden" }}>
                         <div style={{ flex: 1, overflow: "hidden" }}>
                           <div style={{ fontSize: 11, color: C.text, fontWeight: 500, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: height < 40 ? "nowrap" : "normal" }}>{block.label}</div>
-                          {height > 36 && <div style={{ fontSize: 9, color: tag.color, opacity: .8, marginTop: 1 }}>{tag.label} Â· {formatDuration(duration)}</div>}
+                          {height > 36 && <div style={{ fontSize: 9, color: tag.color, opacity: .8, marginTop: 1 }}>{tag.label} · {formatDuration(duration)}</div>}
                           {block.note && height > 52 && <div style={{ fontSize: 9, color: C.textDim, fontStyle: "italic", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.note}</div>}
                         </div>
                         <button
@@ -675,13 +675,13 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
                           onClick={e => { e.stopPropagation(); startEdit(block); }}
                           style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 3, cursor: "pointer", color: C.textDim, fontSize: 9, padding: "1px 4px", flexShrink: 0, lineHeight: 1.4, pointerEvents: "auto" }}
                           title="edit"
-                        >âœŽ</button>
+                        >✎</button>
                         <button
                           data-edit="true"
                           onClick={e => { e.stopPropagation(); onBlocksChange(blocks.filter(b => b.id !== block.id)); }}
                           style={{ background: "none", border: "none", borderRadius: 3, cursor: "pointer", color: C.textDim, fontSize: 10, padding: "1px 3px", flexShrink: 0, lineHeight: 1.4, pointerEvents: "auto" }}
                           title="remove"
-                        >âœ•</button>
+                        >✕</button>
                       </div>
                       {height > 48 && (
                         <div style={{ fontSize: 8, color: C.textDim, fontFamily: "monospace", marginTop: "auto" }}>
@@ -774,7 +774,7 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
   );
 }
 
-// â"€â"€ CHANGE 4: Shift Calendar View â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── CHANGE 4: Shift Calendar View ─────────────────────────────────────
 function ShiftCalendarView({ shifts, onShiftsChange }) {
   const [adding, setAdding] = useState(false);
   const [newShift, setNewShift] = useState({ label: "", date: "", time: "", endTime: "", location: "" });
@@ -808,7 +808,7 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>SHIFTS</div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
             {upcoming.length} upcoming
-            {nextShift && <span> Â· next: <span style={{ color: C.text }}>{nextShift.label || "shift"}</span> {formatEventDate(nextShift.date)}{nextShift.time ? ` ${nextShift.time}` : ""}</span>}
+            {nextShift && <span> · next: <span style={{ color: C.text }}>{nextShift.label || "shift"}</span> {formatEventDate(nextShift.date)}{nextShift.time ? ` ${nextShift.time}` : ""}</span>}
           </div>
         </div>
         <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -863,7 +863,7 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
                       {s.location && <span style={{ fontStyle: "italic" }}>{s.location}</span>}
                     </div>
                   </div>
-                  <button onClick={() => deleteShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>âœ•</button>
+                  <button onClick={() => deleteShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
                 </div>
               );
             })}
@@ -873,7 +873,7 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
 
       {past.length > 0 && (
         <details style={{ marginTop: 10 }}>
-          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>â–¸ {past.length} past shift{past.length !== 1 ? "s" : ""}</summary>
+          <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past shift{past.length !== 1 ? "s" : ""}</summary>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
             {[...past].reverse().map(s => (
               <div key={s.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
@@ -889,7 +889,7 @@ function ShiftCalendarView({ shifts, onShiftsChange }) {
   );
 }
 
-// â"€â"€ Early Access Banner â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Early Access Banner ───────────────────────────────────────────────
 function EarlyAccessBanner() {
   const [visible, setVisible] = useState(true);
   const [dismissed, setDismissed] = useState(false);
@@ -907,11 +907,11 @@ function EarlyAccessBanner() {
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 6, padding: "12px 14px", boxShadow: "0 4px 20px #00000050" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>ðŸš§ EARLY ACCESS</div>
+            <div style={{ fontSize: 11, color: C.accent, letterSpacing: 1, marginBottom: 5 }}>🚧 EARLY ACCESS</div>
             <div style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>Flux is still being built. Things may shift, break, or get better without warning.</div>
             <a href="mailto:fluxteam@proton.me" style={{ fontSize: 10, color: C.textDim, marginTop: 6, display: "block", textDecoration: "none" }}>fluxteam@proton.me</a>
           </div>
-          <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0 }}>âœ•</button>
+          <button onClick={dismiss} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 14, padding: "0 2px", flexShrink: 0 }}>✕</button>
         </div>
       </div>
     </div>
@@ -923,7 +923,7 @@ function EarlyAccessBanner() {
 
 
 
-// â"€â"€ Late Night Prompt â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Late Night Prompt ─────────────────────────────────────────────────
 function LateNightPrompt({ onChoose }) {
   const now = new Date();
   const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
@@ -932,7 +932,7 @@ function LateNightPrompt({ onChoose }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#000000bb", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, maxWidth: 380, width: "100%", padding: "32px 28px", boxShadow: "0 24px 80px #00000080" }}>
-        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 12 }}>ðŸŒ™ IT'S PAST MIDNIGHT</div>
+        <div style={{ fontSize: 11, color: C.textDim, letterSpacing: 2, marginBottom: 12 }}>🌙 IT'S PAST MIDNIGHT</div>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 2, color: C.text, marginBottom: 8 }}>Which day is this for?</div>
         <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.7, marginBottom: 28 }}>Your day doesn't end at midnight — archive whenever you're actually done.</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -950,7 +950,7 @@ function LateNightPrompt({ onChoose }) {
   );
 }
 
-// â"€â"€ Task Drawer â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Task Drawer ───────────────────────────────────────────────────────
 function TaskDrawer({ tasks, onTasksChange }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -972,16 +972,16 @@ function TaskDrawer({ tasks, onTasksChange }) {
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>â–¸ tasks</span>
+          <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ tasks</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
             {remaining > 0 ? <><span style={{ color: C.text }}>{remaining}</span> remaining</> : <span style={{ color: "#10b981" }}>all clear</span>}
-            {doneToday > 0 && <span style={{ marginLeft: 8, color: "#10b981" }}>Â· {doneToday} done today</span>}
-            {scheduled.length > 0 && <span style={{ marginLeft: 8, color: C.textDim }}>Â· {scheduled.length} scheduled</span>}
+            {doneToday > 0 && <span style={{ marginLeft: 8, color: "#10b981" }}>· {doneToday} done today</span>}
+            {scheduled.length > 0 && <span style={{ marginLeft: 8, color: C.textDim }}>· {scheduled.length} scheduled</span>}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={e => { e.stopPropagation(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }} style={{ fontSize: 16, color: C.textDim, padding: "0 4px", lineHeight: 1 }}>+</span>
-          <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>â–¶</span>
+          <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
         </div>
       </div>
       {open && (
@@ -994,7 +994,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
             <button onClick={addTask} style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>add</button>
           </div>
           {pending.length === 0 && done.length === 0 && scheduled.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "8px 0", textAlign: "center" }}>nothing here yet</div>}
-          {pending.length === 0 && done.length > 0 && <div style={{ fontSize: 12, color: "#10b981", padding: "6px 0", textAlign: "center" }}>everything done ðŸŽ‰</div>}
+          {pending.length === 0 && done.length > 0 && <div style={{ fontSize: 12, color: "#10b981", padding: "6px 0", textAlign: "center" }}>everything done 🎉</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {pending.map(task => (
               <div key={task.id} className="task-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 4, background: C.card, border: `1px solid ${C.border}` }}>
@@ -1002,7 +1002,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
                   onMouseEnter={e => e.currentTarget.style.borderColor = "#10b981"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border} />
                 <span style={{ flex: 1, fontSize: 13, color: C.text }}>{task.label}</span>
                 {task.addedAt && <span style={{ fontSize: 10, color: C.textDim }}>{task.addedAt}</span>}
-                <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 3px", opacity: 0, transition: "opacity .15s" }} className="task-del">âœ•</button>
+                <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11, padding: "1px 3px", opacity: 0, transition: "opacity .15s" }} className="task-del">✕</button>
               </div>
             ))}
           </div>
@@ -1013,7 +1013,7 @@ function TaskDrawer({ tasks, onTasksChange }) {
                 <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 4, marginBottom: 3, background: C.card, border: `1px solid ${C.border}`, opacity: .6 }}>
                   <span style={{ fontSize: 10, color: "#38bdf8", minWidth: 60 }}>{formatEventDate(task.scheduledFor)}</span>
                   <span style={{ flex: 1, fontSize: 12, color: C.textMid }}>{task.label}</span>
-                  <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>âœ•</button>
+                  <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>✕</button>
                 </div>
               ))}
             </div>
@@ -1032,14 +1032,14 @@ function TaskDrawer({ tasks, onTasksChange }) {
               ))}
             </div>
           )}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>archive day â†' snapshot saved Â· done cleared Â· undone rolls to tomorrow</div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>archive day → snapshot saved · done cleared · undone rolls to tomorrow</div>
         </div>
       )}
     </div>
   );
 }
 
-// â"€â"€ Upcoming Events Drawer â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Upcoming Events Drawer ────────────────────────────────────────────
 function UpcomingDrawer({ events }) {
   const [open, setOpen] = useState(false);
   const upcoming = events.filter(e => isFuture(e.date)).sort((a, b) => a.date.localeCompare(b.date));
@@ -1051,16 +1051,16 @@ function UpcomingDrawer({ events }) {
     <div style={{ marginBottom: 20 }}>
       <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: open ? "6px 6px 0 0" : "6px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>â–¸ upcoming</span>
+          <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ upcoming</span>
           <span style={{ fontSize: 11, color: C.textDim }}>
             {todayEvents.length > 0 && <span style={{ color: C.accent }}>{todayEvents.length} today</span>}
-            {todayEvents.length > 0 && thisWeek > 0 && <span> Â· </span>}
+            {todayEvents.length > 0 && thisWeek > 0 && <span> · </span>}
             {thisWeek > 0 && <span>{thisWeek} this week</span>}
             {todayEvents.length === 0 && thisWeek === 0 && next && <span>next: <span style={{ color: C.text }}>{next.title}</span> {formatEventDate(next.date)}{next.time ? ` ${next.time}` : ""}</span>}
             {upcoming.length === 0 && <span style={{ color: C.textDim }}>nothing scheduled</span>}
           </span>
         </div>
-        <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>â–¶</span>
+        <span style={{ fontSize: 10, color: C.textDim, display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
       </div>
       {open && (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", padding: "12px 14px" }}>
@@ -1088,7 +1088,7 @@ function UpcomingDrawer({ events }) {
   );
 }
 
-// â"€â"€ Calendar View â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Calendar View ─────────────────────────────────────────────────────
 function CalendarView({ events, onEventsChange }) {
   const [newEvent, setNewEvent] = useState({ title: "", date: "", time: "", note: "" });
   const [adding, setAdding] = useState(false);
@@ -1110,7 +1110,7 @@ function CalendarView({ events, onEventsChange }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>CALENDAR</div>
-          <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{present.length} upcoming Â· {past.length} past</div>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{present.length} upcoming · {past.length} past</div>
         </div>
         <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
           {adding ? "cancel" : "+ add event"}
@@ -1148,14 +1148,14 @@ function CalendarView({ events, onEventsChange }) {
                     {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
                   </div>
                 </div>
-                <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>âœ•</button>
+                <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
               </div>;
             })}
           </div>
         </div>
       ))}
       {past.length > 0 && <details style={{ marginTop: 10 }}>
-        <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>â–¸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
+        <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
           {past.reverse().map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
             <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
@@ -1506,7 +1506,7 @@ function AuthScreen({ onSignOut = null }) {
   return null;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════
 export default function App() {
   const [session, setSession]               = useState(null);
   const [authLoading, setAuthLoading]       = useState(true);
@@ -1901,7 +1901,7 @@ export default function App() {
 
       {flash && (
         <div style={{ position: "fixed", bottom: 24, right: 24, background: flash === "archived" ? "#10b98120" : C.card, border: `1px solid ${flash === "archived" ? "#10b98150" : C.border}`, borderLeft: `3px solid ${flash === "archived" ? "#10b981" : C.accent}`, borderRadius: 6, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, zIndex: 1000, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", animation: "slideUp .35s ease" }}>
-          <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "ðŸ'¾"}</span>
+          <span style={{ fontSize: 16 }}>{flash === "archived" ? "✓" : "💾"}</span>
           <span style={{ fontSize: 12, color: C.text }}>{flash === "archived" ? "Day archived" : "Changes saved"}</span>
         </div>
       )}
@@ -1917,10 +1917,10 @@ export default function App() {
             <button className={`nav${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>Today</button>
             <button className={`nav${view === "shifts" ? " on" : ""}`} onClick={() => setView("shifts")}>Shifts</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
-            <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` Â· ${archiveCount}` : ""}</button>
+            <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
             <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => { setView("patterns"); }} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
             <HelpSystem />
-            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.textDim, fontSize: 10, padding: "6px 8px", textDecoration: "none" }} title="support us â˜•">â˜•</a>
+            <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.textDim, fontSize: 10, padding: "6px 8px", textDecoration: "none" }} title="support us ☕">☕</a>
             <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }}>out</button>
           </div>
         </div>
@@ -2111,7 +2111,7 @@ export default function App() {
                 <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
                   style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "6px 8px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
               </div>
-              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now â†'</button>
+              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now →</button>
             </div>
           </div>
         </>}
@@ -2126,7 +2126,7 @@ export default function App() {
         {view === "archive" && <>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>ARCHIVE</div>
-            <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{archiveCount} days logged Â· click to expand</div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{archiveCount} days logged · click to expand</div>
           </div>
           {archiveCount === 0 && <div style={{ color: C.textDim, fontSize: 13, padding: "40px 0", textAlign: "center" }}>no archived days yet</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2141,7 +2141,7 @@ export default function App() {
                     <div>
                       <div style={{ fontSize: 13 }}>{day.date || key}</div>
                       <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                        {day.blocks?.length || 0} blocks Â· {MOODS[day.mood ?? 2]}
+                        {day.blocks?.length || 0} blocks · {MOODS[day.mood ?? 2]}
                         {day.tasks?.length > 0 && <span style={{ marginLeft: 8 }}>{doneTasks.length}/{day.tasks.length} tasks done</span>}
                       </div>
                     </div>
@@ -2150,7 +2150,7 @@ export default function App() {
                         style={{ background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>print</button>
                       <button onClick={e => { e.stopPropagation(); if (window.confirm(`Delete ${day.date || key}? This cannot be undone.`)) deleteArchiveDay(key); }}
                         style={{ background: "transparent", color: "#ff4d4d", border: "1px solid #ff4d4d", padding: "2px 6px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
-                      <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "â–²" : "â–¼"}</div>
+                      <div style={{ color: C.textDim, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</div>
                     </div>
                   </div>
                   {isOpen && (
@@ -2181,7 +2181,7 @@ export default function App() {
                             {t.doneAt && <span style={{ fontSize: 10, color: C.textDim }}>{t.doneAt}</span>}
                           </div>)}
                           {pendingTasks.map(t => <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, color: C.textDim }}>â—‹</span>
+                            <span style={{ fontSize: 11, color: C.textDim }}>○</span>
                             <span style={{ fontSize: 12, color: C.textDim }}>{t.label}</span>
                             <span style={{ fontSize: 10, color: C.accent, opacity: .6 }}>rolled over</span>
                           </div>)}
@@ -2213,14 +2213,14 @@ export default function App() {
         {view === "patterns" && <>
           {archiveCount < 3 ? (
             <div style={{ textAlign: "center", padding: "60px 0" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>ðŸ"Š</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
               <div style={{ color: C.textMid, fontSize: 14, marginBottom: 6 }}>not enough data yet</div>
               <div style={{ color: C.textDim, fontSize: 12 }}>archive {3 - archiveCount} more day{3 - archiveCount !== 1 ? "s" : ""} to unlock</div>
             </div>
           ) : <>
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>PATTERNS</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{patterns.totalDays} days Â· no judgment, just signal</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{patterns.totalDays} days · no judgment, just signal</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
               {[
@@ -2256,7 +2256,7 @@ export default function App() {
                 <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 13 }}>WHERE YOUR TIME GOES</div>
                 {patterns.tagDist.slice(0, 8).map(([tagId, count]) => {
                   const t = resolveTag(tagId, tags);
-                  return <MiniBar key={tagId} label={t.label} value={count} max={patterns.tagDist[0][1]} color={t.color} sub={`${count} blocks Â· ${Math.round(count / patterns.totalBlocks * 100)}%`} />;
+                  return <MiniBar key={tagId} label={t.label} value={count} max={patterns.tagDist[0][1]} color={t.color} sub={`${count} blocks · ${Math.round(count / patterns.totalBlocks * 100)}%`} />;
                 })}
               </div>
             )}
