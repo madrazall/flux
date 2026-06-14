@@ -2,8 +2,8 @@
  * Cloudflare Worker — flux-proxy
  *
  * Routes traffic on madrazallbuilt.com:
- *   /dailyflux        → redirect to /dailyflux/ (ensures relative paths resolve correctly)
- *   /dailyflux/*      → proxy to flux-6xu.pages.dev (strip /dailyflux prefix)
+ *   /flux             → redirect to /flux/ (ensures relative paths resolve correctly)
+ *   /flux/*           → proxy to flux-6xu.pages.dev (strip /flux prefix)
  *   /api/*            → proxy to flux-6xu.pages.dev/api/* (API calls made by the app)
  *   everything else   → pass through to the origin (rest of madrazallbuilt.com)
  *
@@ -11,24 +11,24 @@
  *   Workers & Pages → Create Worker → paste this code → Save & Deploy
  *
  * Then add these Worker Routes (Cloudflare Dashboard → Workers & Pages → your worker → Triggers):
- *   madrazallbuilt.com/dailyflux*
+ *   madrazallbuilt.com/flux*
  *   madrazallbuilt.com/api/*
  */
 
 const PAGES_ORIGIN = "https://flux-6xu.pages.dev";
-const APP_PATH = "/dailyflux";
+const APP_PATH = "/flux";
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Redirect /dailyflux → /dailyflux/ so relative asset paths resolve correctly
+    // Redirect /flux → /flux/ so relative asset paths resolve correctly
     if (path === APP_PATH) {
       return Response.redirect(url.origin + APP_PATH + "/" + url.search, 301);
     }
 
-    // Proxy /dailyflux/* → Pages root (strip the /dailyflux prefix)
+    // Proxy /flux/* → Pages root (strip the /flux prefix)
     if (path.startsWith(APP_PATH + "/")) {
       const newPath = path.slice(APP_PATH.length) || "/";
       const proxyUrl = PAGES_ORIGIN + newPath + url.search;
