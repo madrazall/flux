@@ -1187,6 +1187,165 @@ function CalendarView({ events, onEventsChange }) {
   );
 }
 
+// -- Journal Drawer -----------------------------------------------------------
+function JournalDrawer({ journalInput, setJournalInput, journalInputRef, journalType, setJournalType, journalPrompt, setJournalPromptOffset, addJournalEntry, journalSaving, journalFeedback, todayJournalEntries, setJournalEntryType, toggleJournalPinned, softDeleteJournalEntry }) {
+  const [open, setOpen] = useState(true);
+  const count = todayJournalEntries.length;
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12 }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "12px 0", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}>
+        <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ journal</span>
+        <span style={{ fontSize: 10, color: C.textDim, display: "flex", alignItems: "center", gap: 8 }}>
+          {count > 0 && <span>{count} entr{count === 1 ? "y" : "ies"}</span>}
+          <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ paddingBottom: 16 }}>
+          {/* Prompt */}
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 10, fontStyle: "italic" }}>{journalPrompt}</div>
+
+          {/* Textarea input */}
+          <textarea
+            ref={journalInputRef}
+            value={journalInput}
+            onChange={e => setJournalInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && e.metaKey && addJournalEntry()}
+            placeholder="what's happening right now..."
+            rows={3}
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "10px 12px", fontSize: 12, outline: "none", fontFamily: "inherit", resize: "none", lineHeight: 1.7, marginBottom: 8 }}
+          />
+
+          {/* Type + actions row */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 6 }}>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {JOURNAL_TYPES.map(type => (
+                <button key={type} onClick={() => setJournalType(type)}
+                  style={{ background: journalType === type ? C.accentDim : "none", border: journalType === type ? `1px solid ${C.accent}` : `1px solid ${C.border}`, color: journalType === type ? C.accent : C.textDim, borderRadius: 999, padding: "2px 9px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                  {JOURNAL_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setJournalPromptOffset(n => n + 1)}
+                style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "5px 10px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                new prompt
+              </button>
+              <button onClick={addJournalEntry} disabled={journalSaving || !journalInput.trim()}
+                style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "5px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", opacity: journalSaving || !journalInput.trim() ? 0.5 : 1 }}>
+                {journalSaving ? "saving..." : "add →"}
+              </button>
+            </div>
+          </div>
+
+          {journalFeedback && (
+            <div style={{ fontSize: 11, marginBottom: 8, color: journalFeedback.type === "ok" ? "#10b981" : "#ef4444" }}>{journalFeedback.message}</div>
+          )}
+
+          {count === 0 && (
+            <div style={{ fontSize: 12, color: C.textDim, padding: "12px 0", textAlign: "center", fontStyle: "italic" }}>
+              nothing yet — add your first thought above
+            </div>
+          )}
+
+          {[...todayJournalEntries].reverse().map(entry => (
+            <div key={entry.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 10px", marginBottom: 6 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 10, color: C.textDim, minWidth: 48, marginTop: 2 }}>{formatEntryTime(entry.created_at)}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6, marginBottom: 6 }}>{entry.text}</div>
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    {JOURNAL_TYPES.map(type => (
+                      <button key={type} onClick={() => setJournalEntryType(entry.id, type)}
+                        style={{ background: entry.type === type ? C.accentDim : "none", border: entry.type === type ? `1px solid ${C.accent}` : `1px solid ${C.border}`, color: entry.type === type ? C.accent : C.textDim, borderRadius: 999, padding: "2px 7px", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>
+                        {JOURNAL_TYPE_LABELS[type]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                  <button onClick={() => toggleJournalPinned(entry.id, !entry.pinned)}
+                    style={{ background: "none", border: "none", color: entry.pinned ? C.accent : C.textDim, cursor: "pointer", fontSize: 10, fontFamily: "inherit" }}>
+                    {entry.pinned ? "pinned" : "pin"}
+                  </button>
+                  <button onClick={() => softDeleteJournalEntry(entry.id)}
+                    style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 10, fontFamily: "inherit" }}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -- The Download Drawer (end-of-day debrief) ---------------------------------
+function DownloadDrawer({ dayNote, setDayNote, wins, setWins, hard, setHard, completedTasksCount, carryoversCount, followUpOrStuckCount, archiveTime, setArchiveTime, saveToday, archiveDay }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 6 }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "12px 0", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}>
+        <span style={{ fontSize: 12, color: C.textMid, letterSpacing: .5 }}>▸ the download</span>
+        <span style={{ fontSize: 10, color: C.textDim, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }}>▶</span>
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ paddingBottom: 16 }}>
+          {/* Stats */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 12px", marginBottom: 14, fontSize: 11, color: C.textMid, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span>{completedTasksCount} done</span>
+            <span>{carryoversCount} open</span>
+            <span>{followUpOrStuckCount} to follow up</span>
+          </div>
+
+          {/* One thing to carry forward */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5, textTransform: "uppercase" }}>one thing to carry forward</label>
+            <textarea value={dayNote} onChange={e => setDayNote(e.target.value)} placeholder="what does tomorrow need to start with?"
+              style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 12px", resize: "none", minHeight: 60, outline: "none", lineHeight: 1.6, fontFamily: "inherit" }} />
+          </div>
+
+          <details style={{ marginBottom: 12 }}>
+            <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", marginBottom: 8, userSelect: "none" }}>more (optional)</summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+              <div>
+                <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4, textTransform: "uppercase" }}>what landed</label>
+                <textarea value={wins} onChange={e => setWins(e.target.value)} placeholder="anything — big or small..."
+                  style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6, fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4, textTransform: "uppercase" }}>what got in the way</label>
+                <textarea value={hard} onChange={e => setHard(e.target.value)} placeholder="friction, blockers, or just life..."
+                  style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6, fontFamily: "inherit" }} />
+              </div>
+            </div>
+          </details>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={saveToday} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "7px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>save</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
+              <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
+                style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "5px 7px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
+            </div>
+            <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 20px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>archive day →</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // -- Auth / Landing / Sign-up / Sign-in screens --------------------------------
 function AuthScreen({ onSignOut = null }) {
   // page: "landing" | "signin" | "signup" | "forgot"
@@ -1988,145 +2147,36 @@ export default function App() {
               <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
               <UpcomingDrawer events={events} />
 
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginTop: 14, marginBottom: 20 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>JOURNAL</div>
-            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8 }}>
-              {journalPrompt}
-            </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-              {JOURNAL_TYPES.map(type => (
-                <button
-                  key={type}
-                  onClick={() => setJournalType(type)}
-                  style={{
-                    background: journalType === type ? C.accentDim : "none",
-                    border: journalType === type ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
-                    color: journalType === type ? C.accent : C.textDim,
-                    borderRadius: 999,
-                    padding: "3px 10px",
-                    fontSize: 10,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  {JOURNAL_TYPE_LABELS[type]}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                ref={journalInputRef}
-                value={journalInput}
-                onChange={e => setJournalInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addJournalEntry()}
-                placeholder={journalPrompt}
-                style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }}
+              {/* Journal drawer */}
+              <JournalDrawer
+                journalInput={journalInput}
+                setJournalInput={setJournalInput}
+                journalInputRef={journalInputRef}
+                journalType={journalType}
+                setJournalType={setJournalType}
+                journalPrompt={journalPrompt}
+                setJournalPromptOffset={setJournalPromptOffset}
+                addJournalEntry={addJournalEntry}
+                journalSaving={journalSaving}
+                journalFeedback={journalFeedback}
+                todayJournalEntries={todayJournalEntries}
+                setJournalEntryType={setJournalEntryType}
+                toggleJournalPinned={toggleJournalPinned}
+                softDeleteJournalEntry={softDeleteJournalEntry}
               />
-              <button
-                onClick={() => setJournalPromptOffset(n => n + 1)}
-                style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "8px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                prompt
-              </button>
-              <button
-                onClick={addJournalEntry}
-                disabled={journalSaving || !journalInput.trim()}
-                style={{ background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accent, borderRadius: 4, padding: "8px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: journalSaving || !journalInput.trim() ? 0.55 : 1 }}
-              >
-                {journalSaving ? "saving..." : "add"}
-              </button>
-            </div>
-            {journalFeedback && (
-              <div style={{ fontSize: 11, marginBottom: 8, color: journalFeedback.type === "ok" ? "#10b981" : "#ef4444" }}>
-                {journalFeedback.message}
-              </div>
-            )}
-            {todayJournalEntries.length === 0 && <div style={{ fontSize: 12, color: C.textDim, padding: "6px 0" }}>no journal entries yet</div>}
-            {[...todayJournalEntries].reverse().map(entry => (
-              <div key={entry.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 9px", marginBottom: 6 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: 10, color: C.textDim, minWidth: 52, marginTop: 1 }}>{formatEntryTime(entry.created_at)}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 6 }}>{entry.text}</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                      {JOURNAL_TYPES.map(type => (
-                        <button
-                          key={type}
-                          onClick={() => setJournalEntryType(entry.id, type)}
-                          style={{
-                            background: entry.type === type ? C.accentDim : "none",
-                            border: entry.type === type ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
-                            color: entry.type === type ? C.accent : C.textDim,
-                            borderRadius: 999,
-                            padding: "2px 7px",
-                            fontSize: 10,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          {JOURNAL_TYPE_LABELS[type]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 1 }}>
-                    <button
-                      onClick={() => toggleJournalPinned(entry.id, !entry.pinned)}
-                      style={{ background: "none", border: "none", color: entry.pinned ? C.accent : C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
-                    >
-                      {entry.pinned ? "pinned" : "pin"}
-                    </button>
-                    <button
-                      onClick={() => softDeleteJournalEntry(entry.id)}
-                      style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}
-                    >
-                      remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
 
-              {/* Debrief */}
-              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginTop: 12 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 2, color: C.textMid, marginBottom: 10 }}>DEBRIEF</div>
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: C.textMid, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <span>{completedTasksCount} completed</span>
-                  <span>{carryoversCount} open</span>
-                  <span>{followUpOrStuckCount} follow-up/stuck</span>
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WHAT SHOULD TOMORROW START WITH?</label>
-                  <textarea value={dayNote} onChange={e => setDayNote(e.target.value)} placeholder="one clear starting point is enough..."
-                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 12px", resize: "none", minHeight: 60, outline: "none", lineHeight: 1.6 }} />
-                </div>
-                <details style={{ marginBottom: 4 }}>
-                  <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", marginBottom: 8 }}>more reflection (optional)</summary>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-                    <div>
-                      <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4 }}>WINS</label>
-                      <textarea value={wins} onChange={e => setWins(e.target.value)} placeholder="even tiny ones count..."
-                        style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6 }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4 }}>STUCK POINTS</label>
-                      <textarea value={hard} onChange={e => setHard(e.target.value)} placeholder="what got in the way?"
-                        style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6 }} />
-                    </div>
-                  </div>
-                </details>
-                <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "7px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
-                    <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
-                      style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "5px 7px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
-                  </div>
-                  <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 20px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now →</button>
-                </div>
-              </div>
+              {/* The Download drawer */}
+              <DownloadDrawer
+                dayNote={dayNote} setDayNote={setDayNote}
+                wins={wins} setWins={setWins}
+                hard={hard} setHard={setHard}
+                completedTasksCount={completedTasksCount}
+                carryoversCount={carryoversCount}
+                followUpOrStuckCount={followUpOrStuckCount}
+                archiveTime={archiveTime} setArchiveTime={setArchiveTime}
+                saveToday={saveToday}
+                archiveDay={archiveDay}
+              />
 
             </div>{/* end right scroll */}
           </div>{/* end right col */}
