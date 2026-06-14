@@ -481,8 +481,9 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
 }
 
 // ── Visual Timeline ───────────────────────────────────────────────────
-function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
+function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags, scrollContainerRef }) {
   const timelineRef = useRef(null);
+  const nowRef = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
   const [resizingId, setResizingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -592,13 +593,24 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
 
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowTop = minutesToPx(nowMins - DAY_START_HOUR * 60);
+  const nowVisible = nowMins >= DAY_START_HOUR * 60 && nowMins <= DAY_END_HOUR * 60;
+
+  // Scroll container to show current time on mount
+  useEffect(() => {
+    const container = scrollContainerRef?.current;
+    if (!container || !nowVisible) return;
+    const offset = Math.max(0, nowTop - container.clientHeight * 0.35);
+    container.scrollTop = offset;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    // ── CHANGE 1: removed marginBottom:16 from outer wrapper, gap was coming
-    // from the spacer div at the bottom doubling the timeline height. Spacer removed.
     <div>
-      <div style={{ display: "flex", fontSize: 11, color: C.textDim, marginBottom: 8, gap: 16 }}>
-        <span>click empty space to add a block</span>
-        <span>drag to move · drag bottom edge to resize</span>
+      <div style={{ display: "flex", fontSize: 10, color: C.textDim, marginBottom: 8, gap: 16 }}>
+        <span>click empty space to add · drag to move · drag bottom to resize</span>
       </div>
 
       <div style={{ display: "flex", gap: 0 }}>
@@ -627,6 +639,14 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags }) {
               <div key={`h${mins}`} style={{ position: "absolute", top: minutesToPx(mins + 30), left: 0, right: 0, borderTop: `1px dashed ${C.border}20`, pointerEvents: "none" }} />
             ))}
           </div>
+
+          {/* Now indicator */}
+          {nowVisible && (
+            <div ref={nowRef} style={{ position: "absolute", top: nowTop, left: 0, right: 0, zIndex: 10, pointerEvents: "none" }}>
+              <div style={{ position: "absolute", left: -5, top: -4, width: 8, height: 8, borderRadius: "50%", background: C.accent }} />
+              <div style={{ borderTop: `1px solid ${C.accent}`, opacity: 0.7 }} />
+            </div>
+          )}
 
           {/* Blocks */}
           <div style={{ position: "relative", height: timelineHeight, pointerEvents: "none" }}>
@@ -1542,6 +1562,7 @@ export default function App() {
   const [archiveTime, setArchiveTime]       = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
   const currentDayKey = todayKey();
+  const timelineScrollRef = useRef(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1877,14 +1898,14 @@ export default function App() {
   if (!session) return <AuthScreen onSignOut={() => supabase.auth.signOut()} />;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans','system-ui',sans-serif", fontSize: "13px" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: "'Inter','DM Sans','system-ui',sans-serif", fontSize: "13px", overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Bebas+Neue&family=DM+Mono:wght@400&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
         textarea,input{font-family:'DM Mono','Fira Code','Courier New',monospace;font-size:13px}
         .task-row:hover .task-del{opacity:1!important}
-        .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 14px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
+        .nav{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;padding:6px 12px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;transition:all .15s}
         .nav.on{color:${C.accent};border-bottom-color:${C.accent}}
         .nav:not(.on){color:${C.textDim}}
         .nav:hover:not(.on){color:${C.textMid}}
@@ -1907,10 +1928,10 @@ export default function App() {
       )}
 
       {/* Nav */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, background: C.bg, zIndex: 20 }}>
-        <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0" }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 20px", background: C.bg, zIndex: 20, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 3, color: C.accent }}>FLUX</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 3, color: C.accent }}>FLUX</div>
             {dbLoading && <span style={{ fontSize: 11, color: C.textDim }}>syncing...</span>}
           </div>
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
@@ -1918,7 +1939,7 @@ export default function App() {
             <button className={`nav${view === "shifts" ? " on" : ""}`} onClick={() => setView("shifts")}>Shifts</button>
             <button className={`nav${view === "calendar" ? " on" : ""}`} onClick={() => setView("calendar")}>Calendar</button>
             <button className={`nav${view === "archive" ? " on" : ""}`} onClick={() => setView("archive")}>Archive{archiveCount > 0 ? ` · ${archiveCount}` : ""}</button>
-            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => { setView("patterns"); }} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
+            <button className={`nav${view === "patterns" ? " on" : ""}`} onClick={() => setView("patterns")} style={{ opacity: archiveCount < 3 ? .3 : 1 }}>Patterns</button>
             <HelpSystem />
             <a href="https://ko-fi.com/fluxteam" target="_blank" rel="noopener noreferrer" style={{ color: C.textDim, fontSize: 10, padding: "6px 8px", textDecoration: "none" }} title="support us ☕">☕</a>
             <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 10, padding: "6px 8px", fontFamily: "inherit", letterSpacing: 1 }}>out</button>
@@ -1926,43 +1947,46 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px 24px 80px" }}>
+      {/* TODAY — two-column dashboard */}
+      {view === "today" && (
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* TODAY */}
-        {view === "today" && <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 13, color: C.textMid }}>{today()}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, letterSpacing: 1 }}>ENERGY</div>
-              <div style={{ display: "flex", gap: 4 }}>
+          {/* LEFT: Timeline */}
+          <div style={{ width: "55%", borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {/* Date + mood header */}
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: C.textMid }}>{today()}</div>
+              <div style={{ display: "flex", gap: 3 }}>
                 {MOODS.map((m, i) => (
-                  <button key={i} onClick={() => setMood(i)} style={{ background: mood === i ? C.accentDim : "none", border: mood === i ? `1px solid ${C.accent}` : `1px solid ${C.border}`, borderRadius: 4, padding: "3px 6px", cursor: "pointer", fontSize: 10, color: mood === i ? C.accent : C.textDim, transition: "all .15s", fontFamily: "inherit" }}>{m}</button>
+                  <button key={i} onClick={() => setMood(i)} style={{ background: mood === i ? C.accentDim : "none", border: mood === i ? `1px solid ${C.accent}` : `1px solid ${C.border}`, borderRadius: 4, padding: "2px 5px", cursor: "pointer", fontSize: 9, color: mood === i ? C.accent : C.textDim, transition: "all .15s", fontFamily: "inherit" }}>{m}</button>
                 ))}
               </div>
             </div>
+            {/* Tags */}
+            {promotedTags.length > 0 && (
+              <div style={{ padding: "6px 16px", borderBottom: `1px solid ${C.border}`, flexShrink: 0, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 9, color: C.textDim, letterSpacing: .5 }}>tags:</span>
+                {promotedTags.map(t => <TagPill key={t.id} tag={t} small />)}
+              </div>
+            )}
+            {/* Scrollable timeline */}
+            <div ref={timelineScrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 16px 40px" }}>
+              <VisualTimeline
+                blocks={blocks}
+                onBlocksChange={setBlocks}
+                tags={tags}
+                onPersistTags={persistTags}
+                scrollContainerRef={timelineScrollRef}
+              />
+            </div>
           </div>
 
+          {/* RIGHT: Tasks + Journal + Upcoming */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 40px" }}>
 
-
-
-          {promotedTags.length > 0 && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 10, color: C.textDim, letterSpacing: .5 }}>tags:</span>
-              {promotedTags.map(t => <TagPill key={t.id} tag={t} small />)}
-            </div>
-          )}
-
-          <VisualTimeline
-            blocks={blocks}
-            onBlocksChange={setBlocks}
-            tags={tags}
-            onPersistTags={persistTags}
-          />
-
-          <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
-          <UpcomingDrawer events={events} />
+              <TaskDrawer tasks={tasks} onTasksChange={setTasks} />
+              <UpcomingDrawer events={events} />
 
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginTop: 14, marginBottom: 20 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>JOURNAL</div>
@@ -2065,56 +2089,53 @@ export default function App() {
             ))}
           </div>
 
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, letterSpacing: 2, color: C.textMid, marginBottom: 12 }}>DEBRIEF</div>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "9px 10px", marginBottom: 12, fontSize: 11, color: C.textMid, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span>{completedTasksCount} completed</span>
-              <span>{carryoversCount} open</span>
-              <span>{followUpOrStuckCount} follow-up/stuck</span>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WHAT SHOULD TOMORROW START WITH?</label>
-              <textarea
-                value={dayNote}
-                onChange={e => setDayNote(e.target.value)}
-                placeholder="one clear starting point is enough..."
-                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, padding: "10px 12px", resize: "none", minHeight: 70, outline: "none", lineHeight: 1.6 }}
-              />
-            </div>
-            <details style={{ marginBottom: 4 }}>
-              <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", marginBottom: 8 }}>more reflection (optional)</summary>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-                <div>
-                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WINS</label>
-                  <textarea
-                    value={wins}
-                    onChange={e => setWins(e.target.value)}
-                    placeholder="even tiny ones count..."
-                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 11px", resize: "none", minHeight: 58, outline: "none", lineHeight: 1.6 }}
-                  />
+              {/* Debrief */}
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginTop: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 2, color: C.textMid, marginBottom: 10 }}>DEBRIEF</div>
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: C.textMid, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <span>{completedTasksCount} completed</span>
+                  <span>{carryoversCount} open</span>
+                  <span>{followUpOrStuckCount} follow-up/stuck</span>
                 </div>
-                <div>
-                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>STUCK POINTS</label>
-                  <textarea
-                    value={hard}
-                    onChange={e => setHard(e.target.value)}
-                    placeholder="what got in the way?"
-                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 11px", resize: "none", minHeight: 58, outline: "none", lineHeight: 1.6 }}
-                  />
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 5 }}>WHAT SHOULD TOMORROW START WITH?</label>
+                  <textarea value={dayNote} onChange={e => setDayNote(e.target.value)} placeholder="one clear starting point is enough..."
+                    style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "9px 12px", resize: "none", minHeight: 60, outline: "none", lineHeight: 1.6 }} />
+                </div>
+                <details style={{ marginBottom: 4 }}>
+                  <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", marginBottom: 8 }}>more reflection (optional)</summary>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4 }}>WINS</label>
+                      <textarea value={wins} onChange={e => setWins(e.target.value)} placeholder="even tiny ones count..."
+                        style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, display: "block", marginBottom: 4 }}>STUCK POINTS</label>
+                      <textarea value={hard} onChange={e => setHard(e.target.value)} placeholder="what got in the way?"
+                        style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 12, padding: "8px 11px", resize: "none", minHeight: 52, outline: "none", lineHeight: 1.6 }} />
+                    </div>
+                  </div>
+                </details>
+                <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "7px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
+                    <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
+                      style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "5px 7px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
+                  </div>
+                  <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "7px 20px", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now →</button>
                 </div>
               </div>
-            </details>
-            <div style={{ display: "flex", gap: 10, marginTop: 15, alignItems: "center", flexWrap: "wrap" }}>
-              <button onClick={() => saveToday()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "9px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save debrief</button>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: C.textDim }}>auto-archive at</span>
-                <input type="time" value={archiveTime} onChange={e => { setArchiveTime(e.target.value); localStorage.setItem("flux_archive_time", e.target.value); }}
-                  style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "6px 8px", fontSize: 11, outline: "none", fontFamily: "inherit" }} />
-              </div>
-              <button onClick={archiveDay} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "9px 24px", fontSize: 12, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Archive now →</button>
-            </div>
-          </div>
-        </>}
+
+            </div>{/* end right scroll */}
+          </div>{/* end right col */}
+        </div>
+      )}{/* end today */}
+
+      {/* OTHER VIEWS — single scrollable column */}
+      {view !== "today" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "22px 24px 60px", maxWidth: 760, width: "100%", margin: "0 auto", alignSelf: "flex-start", minWidth: 0 }}>
 
         {/* SHIFTS */}
         {view === "shifts" && <ShiftCalendarView shifts={shifts} onShiftsChange={saveShifts} />}
@@ -2281,8 +2302,9 @@ export default function App() {
           </>}
         </>}
 
+        </div>
+      )}{/* end other views */}
 
-      </div>
       <FeedbackButton userEmail={session?.user?.email || ""} />
     </div>
   );
