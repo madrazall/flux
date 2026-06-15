@@ -1750,6 +1750,7 @@ export default function App() {
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
   const currentDayKey = todayKey();
   const timelineScrollRef = useRef(null);
+  const dataLoadedRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
@@ -1832,11 +1833,13 @@ export default function App() {
       if (eventsData) setEvents(eventsData.map(e => e.data));
       if (journalData) setJournalEntries(sortJournalEntries(journalData));
     } catch (e) { console.error("load error", e); }
+    dataLoadedRef.current = true;
     setDbLoading(false);
   }, [session]);
 
   const saveToday = useCallback(async (quiet = false) => {
     if (!session) return;
+    if (!dataLoadedRef.current) return; // never overwrite before initial load completes
     const uid = session.user.id;
     await supabase.from("user_data").upsert({ user_id: uid, today_key: todayKey(), blocks, tasks, mood, day_note: dayNote, wins, hard, tags, shifts }, { onConflict: "user_id" });
     if (!quiet) { setFlash("saved"); setTimeout(() => setFlash(null), 1600); }
