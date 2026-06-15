@@ -481,7 +481,7 @@ function TagSelector({ tags, value, onChange, onCreateTag }) {
 }
 
 // ── Visual Timeline ───────────────────────────────────────────────────
-function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags, scrollContainerRef }) {
+function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags, scrollContainerRef, gcalEvents = [] }) {
   const timelineRef = useRef(null);
   const nowRef = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
@@ -763,6 +763,31 @@ function VisualTimeline({ blocks, onBlocksChange, tags, onPersistTags, scrollCon
               );
             })}
           </div>
+
+          {/* Google Calendar read-only events */}
+          {gcalEvents.map(ev => {
+            const start = new Date(ev.start);
+            const end = new Date(ev.end);
+            const startMins = start.getHours() * 60 + start.getMinutes();
+            const endMins = end.getHours() * 60 + end.getMinutes();
+            const duration = Math.max(15, endMins - startMins);
+            const top = minutesToPx(startMins - DAY_START_HOUR * 60);
+            const height = Math.max(minutesToPx(duration), 20);
+            if (startMins < DAY_START_HOUR * 60 || startMins > DAY_END_HOUR * 60) return null;
+            return (
+              <div key={ev.id} title={ev.title} style={{
+                position: "absolute", top, left: 2, right: 2, height,
+                background: "#38bdf810", border: "1px dashed #38bdf840",
+                borderLeft: "3px solid #38bdf8",
+                borderRadius: 4, padding: "3px 6px",
+                pointerEvents: "none", zIndex: 0, overflow: "hidden",
+              }}>
+                <div style={{ fontSize: 10, color: "#38bdf8", opacity: .8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  📅 {ev.title}
+                </div>
+              </div>
+            );
+          })}
 
           {addingAt !== null && (
             <div style={{
@@ -1718,6 +1743,8 @@ export default function App() {
   const [expandedArchive, setExpandedArchive] = useState(null);
   const [flash, setFlash]                   = useState(null);
   const [archiveModal, setArchiveModal]     = useState(null); // null | { keepIds: Set }
+  const [gcalEvents, setGcalEvents]         = useState([]);
+  const [gcalConnected, setGcalConnected]   = useState(false);
   const [dbLoading, setDbLoading]           = useState(false);
   const [archiveTime, setArchiveTime]       = useState(() => localStorage.getItem("flux_archive_time") || "23:00");
   const [autoArchivedToday, setAutoArchivedToday] = useState(() => localStorage.getItem("flux_autoarchived_" + todayKey()) === "true");
@@ -1816,6 +1843,34 @@ export default function App() {
   }, [session, blocks, tasks, mood, dayNote, wins, hard, tags, shifts]);
 
   useEffect(() => { if (!session) return; loadData(); }, [session, loadData]);
+
+  // Google Calendar — detect OAuth return & fetch today's events
+  useEffect(() => {
+    if (!session) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gcal_connected") === "1") {
+      setGcalConnected(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("gcal_error")) {
+      console.warn("Google Calendar error:", params.get("gcal_error"));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const dateStr = todayKey();
+    fetch(`/api/google-calendar?user_id=${session.user.id}&date=${dateStr}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.events) {
+          setGcalConnected(true);
+          setGcalEvents(data.events);
+        }
+      })
+      .catch(() => {});
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -2173,12 +2228,20 @@ export default function App() {
             )}
             {/* Scrollable timeline */}
             <div ref={timelineScrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 16px 40px" }}>
+              {!gcalConnected && (
+                <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <a href={`/api/google-auth?user_id=${session.user.id}`} style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, textDecoration: "none", padding: "4px 10px", border: `1px solid ${C.border}`, borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ fontSize: 12 }}>📅</span> connect google calendar
+                  </a>
+                </div>
+              )}
               <VisualTimeline
                 blocks={blocks}
                 onBlocksChange={setBlocks}
                 tags={tags}
                 onPersistTags={persistTags}
                 scrollContainerRef={timelineScrollRef}
+                gcalEvents={gcalEvents}
               />
             </div>
           </div>
