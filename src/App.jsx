@@ -1421,11 +1421,11 @@ function FileDrop({ userId }) {
         onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
         onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
       >
-        <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.tsv,.ods" style={{ display: "none" }} onChange={upload} />
+        <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.tsv,.ods,.zip,.tar,.gz" style={{ display: "none" }} onChange={upload} />
         <div style={{ fontSize: 13, color: uploading ? C.accent : C.textMid }}>
           {uploading ? "uploading…" : "click to upload a file"}
         </div>
-        <div style={{ fontSize: 10, color: C.textDim, marginTop: 6 }}>csv · xlsx · xls · tsv · ods</div>
+        <div style={{ fontSize: 10, color: C.textDim, marginTop: 6 }}>csv · xlsx · xls · zip · and more</div>
       </div>
 
       {msg && <div style={{ fontSize: 11, color: C.accent, marginBottom: 16 }}>{msg}</div>}
