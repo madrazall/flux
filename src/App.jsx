@@ -1371,6 +1371,85 @@ function DownloadDrawer({ dayNote, setDayNote, wins, setWins, hard, setHard, com
   );
 }
 
+// -- File Drop (owner-only hidden transfer tool) --------------------------------
+const DROP_OWNER_ID = "134f61b6-0d67-4ccb-9be2-f76e0b85f9d7";
+const DROP_BUCKET   = "filedrop";
+
+function FileDrop({ userId }) {
+  const [files, setFiles]       = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg]           = useState(null);
+  const inputRef = useRef(null);
+
+  async function loadFiles() {
+    const { data } = await supabase.storage.from(DROP_BUCKET).list(userId, { sortBy: { column: "created_at", order: "desc" } });
+    setFiles(data || []);
+  }
+
+  useEffect(() => { loadFiles(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function upload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const path = `${userId}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from(DROP_BUCKET).upload(path, file);
+    if (error) { setMsg("upload failed: " + error.message); }
+    else { setMsg("uploaded"); await loadFiles(); }
+    setUploading(false);
+    setTimeout(() => setMsg(null), 2500);
+  }
+
+  async function download(name) {
+    const { data } = await supabase.storage.from(DROP_BUCKET).createSignedUrl(`${userId}/${name}`, 60);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  }
+
+  async function remove(name) {
+    await supabase.storage.from(DROP_BUCKET).remove([`${userId}/${name}`]);
+    setFiles(f => f.filter(x => x.name !== name));
+  }
+
+  return (
+    <div style={{ maxWidth: 520, margin: "60px auto", padding: "0 24px" }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: C.textMid, marginBottom: 4 }}>FILE DROP</div>
+      <div style={{ fontSize: 11, color: C.textDim, marginBottom: 28 }}>personal transfer · owner only</div>
+
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{ border: `2px dashed ${C.border}`, borderRadius: 8, padding: "32px 20px", textAlign: "center", cursor: "pointer", marginBottom: 24, transition: "border-color .15s" }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+        onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+      >
+        <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.tsv,.ods" style={{ display: "none" }} onChange={upload} />
+        <div style={{ fontSize: 13, color: uploading ? C.accent : C.textMid }}>
+          {uploading ? "uploading…" : "click to upload a file"}
+        </div>
+        <div style={{ fontSize: 10, color: C.textDim, marginTop: 6 }}>csv · xlsx · xls · tsv · ods</div>
+      </div>
+
+      {msg && <div style={{ fontSize: 11, color: C.accent, marginBottom: 16 }}>{msg}</div>}
+
+      {files.length === 0 && <div style={{ fontSize: 12, color: C.textDim, textAlign: "center", padding: "20px 0" }}>no files yet</div>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {files.map(f => (
+          <div key={f.name} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px" }}>
+            <div style={{ flex: 1, fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {f.name.replace(/^\d+_/, "")}
+            </div>
+            <div style={{ fontSize: 10, color: C.textDim, flexShrink: 0 }}>
+              {f.metadata?.size ? (f.metadata.size / 1024).toFixed(0) + " kb" : ""}
+            </div>
+            <button onClick={() => download(f.name)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "4px 10px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>↓</button>
+            <button onClick={() => remove(f.name)} style={{ background: "none", border: "none", color: C.textDim, fontSize: 12, cursor: "pointer", padding: "4px 6px" }}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // -- Auth / Landing / Sign-up / Sign-in screens --------------------------------
 function AuthScreen({ onSignOut = null }) {
   // page: "landing" | "signin" | "signup" | "forgot"
@@ -1721,7 +1800,7 @@ export default function App() {
   const [resetSuccess, setResetSuccess]     = useState(false);
   const [showLateNightPrompt, setShowLateNightPrompt] = useState(false);
   const [lateNightKey, setLateNightKey]     = useState(null);
-  const [view, setView]                     = useState("today");
+  const [view, setView]                     = useState(window.location.hash === "#drop" ? "drop" : "today");
   const [blocks, setBlocks]                 = useState([]);
   const [tasks, setTasks]                   = useState([]);
   const [events, setEvents]                 = useState([]);
@@ -2460,6 +2539,10 @@ export default function App() {
 
           </>}
         </>}
+
+        {view === "drop" && session?.user?.id === DROP_OWNER_ID && (
+          <FileDrop userId={session.user.id} />
+        )}
 
         </div>
       )}{/* end other views */}
