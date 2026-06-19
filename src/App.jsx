@@ -1136,78 +1136,191 @@ function UpcomingDrawer({ events }) {
 // ── Calendar View ─────────────────────────────────────────────────────
 function CalendarView({ events, onEventsChange }) {
   const [newEvent, setNewEvent] = useState({ title: "", date: "", time: "", note: "" });
-  const [adding, setAdding] = useState(false);
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
-  const past = sorted.filter(e => e.date < todayKey());
+  const [adding, setAdding]     = useState(false);
+  const [calView, setCalView]   = useState("list"); // "list" | "grid"
+  const [gridMonth, setGridMonth] = useState(() => {
+    const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() };
+  });
+
+  const sorted  = [...events].sort((a, b) => a.date.localeCompare(b.date));
+  const past    = sorted.filter(e => e.date < todayKey());
   const present = sorted.filter(e => isFuture(e.date));
+
   function addEvent() {
     if (!newEvent.title.trim() || !newEvent.date) return;
     onEventsChange([...events, { ...newEvent, id: genId() }]);
     setNewEvent({ title: "", date: "", time: "", note: "" }); setAdding(false);
   }
   function deleteEvent(id) { onEventsChange(events.filter(e => e.id !== id)); }
+
   const grouped = present.reduce((acc, e) => {
     const month = dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
     if (!acc[month]) acc[month] = []; acc[month].push(e); return acc;
   }, {});
+
+  // Grid helpers
+  function gridDays() {
+    const { year, month } = gridMonth;
+    const first = new Date(year, month, 1);
+    const last  = new Date(year, month + 1, 0);
+    const days  = [];
+    for (let i = 0; i < first.getDay(); i++) days.push(null);
+    for (let d = 1; d <= last.getDate(); d++) days.push(new Date(year, month, d));
+    return days;
+  }
+  function gridKey(d) { return d ? localDateKey(d) : null; }
+  const eventsByDate = events.reduce((acc, e) => { if (!acc[e.date]) acc[e.date] = []; acc[e.date].push(e); return acc; }, {});
+  const gridMonthLabel = new Date(gridMonth.year, gridMonth.month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  function prevMonth() { setGridMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 }); }
+  function nextMonth() { setGridMonth(({ year, month }) => month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 }); }
+
   return (
     <div>
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: C.textMid }}>CALENDAR</div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{present.length} upcoming · {past.length} past</div>
         </div>
-        <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          {adding ? "cancel" : "+ add event"}
-        </button>
-      </div>
-      {adding && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
-        <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW EVENT</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addEvent()}
-            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none" }} />
-          <div style={{ display: "flex", gap: 10 }}>
-            <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
-            <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {/* View toggle */}
+          <div style={{ display: "flex", border: `1px solid ${C.border}`, borderRadius: 4, overflow: "hidden" }}>
+            {["list", "grid"].map(v => (
+              <button key={v} onClick={() => setCalView(v)} style={{ background: calView === v ? C.accent : "none", border: "none", color: calView === v ? "#fff" : C.textDim, padding: "5px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: 1 }}>
+                {v === "list" ? "≡" : "▦"}
+              </button>
+            ))}
           </div>
-          <input placeholder="note (optional)" value={newEvent.note} onChange={e => setNewEvent({ ...newEvent, note: e.target.value })} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none" }} />
-          <button onClick={addEvent} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>Add Event</button>
+          <button onClick={() => setAdding(!adding)} style={{ background: adding ? "none" : C.accent, border: adding ? `1px solid ${C.border}` : "none", color: adding ? C.textDim : "#fff", borderRadius: 4, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            {adding ? "cancel" : "+ add event"}
+          </button>
         </div>
-      </div>}
-      {present.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>nothing scheduled yet</div>}
-      {Object.entries(grouped).map(([month, evs]) => (
-        <div key={month} style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {evs.map(e => {
-              const d = dateFromLocalKey(e.date); const isItToday = isToday(e.date);
-              return <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
-                <div style={{ textAlign: "center", minWidth: 32 }}>
-                  <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
-                  <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+      </div>
+
+      {/* Add form */}
+      {adding && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 12 }}>NEW EVENT</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input autoFocus placeholder="what is it..." value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addEvent()}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 13, outline: "none" }} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+              <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+            </div>
+            <input placeholder="note (optional)" value={newEvent.note} onChange={e => setNewEvent({ ...newEvent, note: e.target.value })} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "8px 10px", fontSize: 12, outline: "none" }} />
+            <button onClick={addEvent} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "8px 20px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", alignSelf: "flex-start" }}>Add Event</button>
+          </div>
+        </div>
+      )}
+
+      {/* GRID VIEW */}
+      {calView === "grid" && (
+        <div>
+          {/* Month nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <button onClick={prevMonth} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "4px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>‹</button>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMid, textTransform: "uppercase" }}>{gridMonthLabel}</div>
+            <button onClick={nextMonth} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "4px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>›</button>
+          </div>
+
+          {/* Day labels */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+            {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+              <div key={d} style={{ textAlign: "center", fontSize: 9, color: C.textDim, letterSpacing: 1, padding: "4px 0" }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {gridDays().map((d, i) => {
+              const key  = gridKey(d);
+              const evs  = key ? (eventsByDate[key] || []) : [];
+              const isTd = key === todayKey();
+              const isPast = key && key < todayKey();
+              return (
+                <div key={i} style={{ minHeight: 64, background: d ? (isTd ? C.accentDim : C.card) : "transparent", border: d ? `1px solid ${isTd ? C.accent + "60" : C.border}` : "none", borderRadius: 4, padding: "5px 6px", position: "relative" }}>
+                  {d && (
+                    <>
+                      <div style={{ fontSize: 11, color: isTd ? C.accent : isPast ? C.textDim : C.text, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, lineHeight: 1, marginBottom: 3, opacity: isPast ? 0.5 : 1 }}>{d.getDate()}</div>
+                      {evs.slice(0, 2).map(e => (
+                        <div key={e.id} title={e.title} style={{ fontSize: 9, color: "#38bdf8", background: "#0c2233", border: "1px solid #38bdf820", borderRadius: 2, padding: "1px 4px", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {e.time && <span style={{ opacity: .6 }}>{e.time.slice(0,5)} </span>}{e.title}
+                        </div>
+                      ))}
+                      {evs.length > 2 && <div style={{ fontSize: 8, color: C.textDim }}>+{evs.length - 2} more</div>}
+                    </>
+                  )}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
-                  <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                    {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
-                    {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
-                  </div>
-                </div>
-                <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
-              </div>;
+              );
             })}
           </div>
+
+          {/* Events on grid — click-to-delete below */}
+          {Object.entries(eventsByDate)
+            .filter(([k]) => k.startsWith(`${gridMonth.year}-${String(gridMonth.month + 1).padStart(2,"0")}`))
+            .sort(([a],[b]) => a.localeCompare(b))
+            .map(([date, evs]) => (
+              <div key={date} style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 1, marginBottom: 6 }}>
+                  {dateFromLocalKey(date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                </div>
+                {evs.map(e => (
+                  <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: C.card, border: `1px solid ${C.border}`, borderLeft: "3px solid #38bdf8", borderRadius: 4, marginBottom: 4 }}>
+                    <div style={{ flex: 1, fontSize: 12, color: C.text }}>{e.title}{e.time && <span style={{ color: "#38bdf8", marginLeft: 8, fontSize: 10 }}>{e.time}</span>}</div>
+                    <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
-      ))}
-      {past.length > 0 && <details style={{ marginTop: 10 }}>
-        <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
-          {past.reverse().map(e => <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
-            <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-            <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{e.title}</span>
-          </div>)}
+      )}
+
+      {/* LIST VIEW */}
+      {calView === "list" && (
+        <div>
+          {present.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: C.textDim, fontSize: 13 }}>nothing scheduled yet</div>}
+          {Object.entries(grouped).map(([month, evs]) => (
+            <div key={month} style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>{month}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {evs.map(e => {
+                  const d = dateFromLocalKey(e.date); const isItToday = isToday(e.date);
+                  return (
+                    <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
+                      <div style={{ textAlign: "center", minWidth: 32 }}>
+                        <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
+                        <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
+                        <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                          {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
+                          {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
+                        </div>
+                      </div>
+                      <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {past.length > 0 && (
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ fontSize: 11, color: C.textDim, cursor: "pointer", letterSpacing: 1, listStyle: "none", marginBottom: 10 }}>▸ {past.length} past event{past.length !== 1 ? "s" : ""}</summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, opacity: .4 }}>
+                {past.reverse().map(e => (
+                  <div key={e.id} style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 4 }}>
+                    <span style={{ fontSize: 11, color: C.textDim, minWidth: 80 }}>{dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    <span style={{ fontSize: 12, color: C.textDim, textDecoration: "line-through" }}>{e.title}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
-      </details>}
+      )}
     </div>
   );
 }
