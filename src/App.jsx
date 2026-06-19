@@ -1135,9 +1135,11 @@ function UpcomingDrawer({ events }) {
 
 // ── Calendar View ─────────────────────────────────────────────────────
 function CalendarView({ events, onEventsChange }) {
-  const [newEvent, setNewEvent] = useState({ title: "", date: "", time: "", note: "" });
-  const [adding, setAdding]     = useState(false);
-  const [calView, setCalView]   = useState("list"); // "list" | "grid"
+  const [newEvent, setNewEvent]   = useState({ title: "", date: "", time: "", note: "" });
+  const [adding, setAdding]       = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const [calView, setCalView]     = useState("list"); // "list" | "grid"
   const [gridMonth, setGridMonth] = useState(() => {
     const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() };
   });
@@ -1152,6 +1154,29 @@ function CalendarView({ events, onEventsChange }) {
     setNewEvent({ title: "", date: "", time: "", note: "" }); setAdding(false);
   }
   function deleteEvent(id) { onEventsChange(events.filter(e => e.id !== id)); }
+  function startEdit(e) { setEditingId(e.id); setEditValues({ title: e.title, date: e.date, time: e.time || "", note: e.note || "" }); }
+  function saveEdit() { onEventsChange(events.map(e => e.id === editingId ? { ...e, ...editValues } : e)); setEditingId(null); }
+
+  const editForm = (
+    <div style={{ background: C.surface, border: `1px solid ${C.accent}40`, borderRadius: 6, padding: 12, marginTop: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <input autoFocus value={editValues.title} onChange={e => setEditValues({ ...editValues, title: e.target.value })} onKeyDown={e => e.key === "Enter" && saveEdit()}
+          style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, outline: "none" }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="date" value={editValues.date} onChange={e => setEditValues({ ...editValues, date: e.target.value })}
+            style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+          <input type="time" value={editValues.time} onChange={e => setEditValues({ ...editValues, time: e.target.value })}
+            style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+        </div>
+        <input placeholder="note (optional)" value={editValues.note} onChange={e => setEditValues({ ...editValues, note: e.target.value })}
+          style={{ background: C.card, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: "7px 10px", fontSize: 12, outline: "none" }} />
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={saveEdit} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 4, padding: "6px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>save</button>
+          <button onClick={() => setEditingId(null)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 4, padding: "6px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
+        </div>
+      </div>
+    </div>
+  );
 
   const grouped = present.reduce((acc, e) => {
     const month = dateFromLocalKey(e.date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -1266,9 +1291,13 @@ function CalendarView({ events, onEventsChange }) {
                   {dateFromLocalKey(date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
                 </div>
                 {evs.map(e => (
-                  <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: C.card, border: `1px solid ${C.border}`, borderLeft: "3px solid #38bdf8", borderRadius: 4, marginBottom: 4 }}>
-                    <div style={{ flex: 1, fontSize: 12, color: C.text }}>{e.title}{e.time && <span style={{ color: "#38bdf8", marginLeft: 8, fontSize: 10 }}>{e.time}</span>}</div>
-                    <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>✕</button>
+                  <div key={e.id} style={{ marginBottom: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: C.card, border: `1px solid ${C.border}`, borderLeft: "3px solid #38bdf8", borderRadius: editingId === e.id ? "4px 4px 0 0" : 4 }}>
+                      <div style={{ flex: 1, fontSize: 12, color: C.text }}>{e.title}{e.time && <span style={{ color: "#38bdf8", marginLeft: 8, fontSize: 10 }}>{e.time}</span>}</div>
+                      <button onClick={() => editingId === e.id ? setEditingId(null) : startEdit(e)} style={{ background: "none", border: `1px solid ${C.border}`, cursor: "pointer", color: C.textDim, fontSize: 10, padding: "2px 8px", borderRadius: 3, fontFamily: "inherit" }}>✎</button>
+                      <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 11 }}>✕</button>
+                    </div>
+                    {editingId === e.id && editForm}
                   </div>
                 ))}
               </div>
@@ -1287,19 +1316,23 @@ function CalendarView({ events, onEventsChange }) {
                 {evs.map(e => {
                   const d = dateFromLocalKey(e.date); const isItToday = isToday(e.date);
                   return (
-                    <div key={e.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: 6 }}>
-                      <div style={{ textAlign: "center", minWidth: 32 }}>
-                        <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
-                        <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
-                        <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                          {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
-                          {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
+                    <div key={e.id}>
+                      <div style={{ display: "flex", gap: 14, alignItems: "center", padding: "10px 14px", background: isItToday ? C.accentDim : C.card, border: `1px solid ${isItToday ? C.accent + "50" : C.border}`, borderLeft: `3px solid ${isItToday ? C.accent : "#38bdf8"}`, borderRadius: editingId === e.id ? "6px 6px 0 0" : 6 }}>
+                        <div style={{ textAlign: "center", minWidth: 32 }}>
+                          <div style={{ fontSize: 18, fontFamily: "'Bebas Neue',sans-serif", color: isItToday ? C.accent : C.text, lineHeight: 1 }}>{d.getDate()}</div>
+                          <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                         </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: C.text }}>{e.title}</div>
+                          <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                            {e.time && <span style={{ color: "#38bdf8", marginRight: 8 }}>{e.time}</span>}
+                            {e.note && <span style={{ fontStyle: "italic" }}>{e.note}</span>}
+                          </div>
+                        </div>
+                        <button onClick={() => editingId === e.id ? setEditingId(null) : startEdit(e)} style={{ background: "none", border: `1px solid ${C.border}`, cursor: "pointer", color: C.textDim, fontSize: 10, padding: "2px 8px", borderRadius: 3, fontFamily: "inherit" }}>✎</button>
+                        <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
                       </div>
-                      <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 12, padding: "2px 4px" }}>✕</button>
+                      {editingId === e.id && editForm}
                     </div>
                   );
                 })}
